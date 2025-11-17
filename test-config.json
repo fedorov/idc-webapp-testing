@@ -1,5 +1,5 @@
 {
-  "testUrl": "https://testing-portal.canceridc.dev/explore/",
+  "testUrl": "https://portal.imaging.datacommons.cancer.gov/explore/",
   "pageLoadTimeout": 90000,
   "tests": {
     "pageLoad": {

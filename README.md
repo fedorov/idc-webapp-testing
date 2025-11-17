@@ -4,7 +4,7 @@ Automated testing infrastructure for the [NCI Imaging Data Commons (IDC)](https:
 
 ## Overview
 
-This repository provides automated browser testing for the IDC web portal at https://testing-portal.canceridc.dev/explore/. The tests handle the complex nature of the portal, including:
+This repository provides automated browser testing for the IDC web portal. The tests handle the complex nature of the portal, including:
 
 - Database interactions
 - Long page load times (~1 minute)
@@ -83,7 +83,7 @@ Customize test behavior by editing `test-config.json`:
 
 ```json
 {
-  "testUrl": "https://testing-portal.canceridc.dev/explore/",
+  "testUrl": "https://portal.imaging.datacommons.cancer.gov/explore/",
   "pageLoadTimeout": 90000,
   "tests": {
     "pageLoad": {
@@ -171,7 +171,7 @@ Tests generate reference results in `test-results/reference-results.json`:
 ```json
 {
   "timestamp": "2024-01-01T00:00:00.000Z",
-  "url": "https://testing-portal.canceridc.dev/explore/",
+  "url": "https://portal.imaging.datacommons.cancer.gov/explore/",
   "title": "IDC Portal",
   "contentLength": 50000,
   "hasDataElements": true,
@@ -218,7 +218,7 @@ Create a new test file in the `tests/` directory:
 import { test, expect } from '@playwright/test';
 
 test('my new test', async ({ page }) => {
-  await page.goto('https://testing-portal.canceridc.dev/explore/');
+  await page.goto('https://portal.imaging.datacommons.cancer.gov/explore/');
   // Your test code here
 });
 ```
