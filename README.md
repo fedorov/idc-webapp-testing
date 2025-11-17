@@ -58,9 +58,24 @@ npm run test:debug
 
 # View test report
 npm run report
+
+# Run tests against a different URL
+PORTAL_URL=https://example.com/explore npm test
 ```
 
 ## Configuration
+
+### Test URL
+
+The test URL can be configured in two ways:
+
+1. **Default**: Set in `test-config.json` as `testUrl`
+2. **Environment Variable**: Set `PORTAL_URL` environment variable (overrides config file)
+
+In GitHub Actions, the URL is controlled by the `PORTAL_URL` repository variable. To set it:
+1. Go to repository **Settings** → **Secrets and variables** → **Actions** → **Variables**
+2. Create or update `PORTAL_URL` variable with your desired URL
+3. If not set, tests will use the default from `test-config.json`
 
 ### Test Configuration (`test-config.json`)
 

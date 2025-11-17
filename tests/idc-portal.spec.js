@@ -6,6 +6,10 @@ import path from 'path';
 const configPath = path.join(process.cwd(), 'test-config.json');
 const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
+// Override testUrl with environment variable if provided
+// This allows GitHub Actions to use repository variables
+config.testUrl = process.env.PORTAL_URL || config.testUrl;
+
 /**
  * Helper function to wait for page to be fully loaded
  * The IDC portal is complex and takes ~1 minute to load

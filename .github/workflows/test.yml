@@ -44,6 +44,7 @@ jobs:
         run: npm test
         env:
           CI: true
+          PORTAL_URL: ${{ vars.PORTAL_URL }}
       
       - name: Upload test results
         if: always()

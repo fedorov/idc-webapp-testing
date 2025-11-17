@@ -118,6 +118,25 @@ Examples:
 
 ## Environment Variables
 
+The workflow uses environment variables for configuration:
+
+### Portal URL Configuration
+
+The test URL is controlled by the `PORTAL_URL` repository variable:
+
+**To set the PORTAL_URL variable:**
+
+1. Go to repository **Settings**
+2. Select **Secrets and variables** > **Actions** > **Variables** tab
+3. Click **New repository variable**
+4. Name: `PORTAL_URL`
+5. Value: Your portal URL (e.g., `https://testing-portal.canceridc.dev/explore/`)
+6. Click **Add variable**
+
+If `PORTAL_URL` is not set, tests will use the default URL from `test-config.json`.
+
+### Adding Custom Environment Variables
+
 Add environment variables for testing:
 
 In `.github/workflows/test.yml`:
@@ -126,6 +145,7 @@ In `.github/workflows/test.yml`:
   run: npm test
   env:
     CI: true
+    PORTAL_URL: ${{ vars.PORTAL_URL }}  # Repository variable
     TEST_ENV: testing  # Custom variable
     API_KEY: ${{ secrets.API_KEY }}  # From GitHub Secrets
 ```
