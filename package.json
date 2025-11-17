@@ -1,0 +1,23 @@
+{
+  "name": "idc-webapp-testing",
+  "version": "1.0.0",
+  "description": "Automated testing for NCI Imaging Data Commons web portal",
+  "main": "index.js",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "report": "playwright show-report"
+  },
+  "keywords": [
+    "testing",
+    "playwright",
+    "idc",
+    "web-portal"
+  ],
+  "author": "",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@playwright/test": "^1.40.0"
+  }
+}

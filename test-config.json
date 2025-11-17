@@ -1,0 +1,81 @@
+{
+  "testUrl": "https://testing-portal.canceridc.dev/explore/",
+  "pageLoadTimeout": 90000,
+  "tests": {
+    "pageLoad": {
+      "enabled": true,
+      "description": "Verify the explore page loads successfully",
+      "selectors": {
+        "filterPanel": ".filter-panel, #filters-panel, [data-filters]",
+        "dataTable": ".data-table, table, [role='table']",
+        "navigationMenu": "nav, [role='navigation'], .navbar"
+      },
+      "waitForSelectors": [
+        "body",
+        "#content-body"
+      ]
+    },
+    "databaseInteraction": {
+      "enabled": true,
+      "description": "Test database-driven data loading",
+      "waitForNetworkIdle": true,
+      "waitAfterLoad": 5000,
+      "expectedElements": [
+        "table",
+        "cohort",
+        "collection",
+        "filter",
+        "search"
+      ]
+    },
+    "filterInteraction": {
+      "enabled": true,
+      "description": "Test filter panel interactions",
+      "selectors": {
+        "filterButton": "button.filter-btn, .apply-filters-btn, button[data-filter]",
+        "filterPanel": ".filters, #filters, .filter-panel",
+        "resetButton": "button.reset-filters, .clear-filters, button[data-clear]"
+      }
+    },
+    "dataTableVerification": {
+      "enabled": true,
+      "description": "Verify data tables load with content",
+      "minRowCount": 0,
+      "tableSelectors": [
+        "table",
+        ".dataTable",
+        "[role='table']"
+      ]
+    },
+    "cartFunctionality": {
+      "enabled": true,
+      "description": "Test cart/selection functionality",
+      "selectors": {
+        "cartIcon": ".cart, #cart, [data-cart]",
+        "addToCart": "button[data-add-to-cart], .add-to-cart"
+      }
+    }
+  },
+  "referenceResults": {
+    "expectedTitle": "IDC",
+    "expectedKeywords": [
+      "imaging",
+      "data",
+      "commons",
+      "explore",
+      "portal",
+      "collection",
+      "cohort"
+    ],
+    "expectedAPICalls": [
+      "/api/",
+      "/cohorts/",
+      "/collections/"
+    ]
+  },
+  "networkMonitoring": {
+    "enabled": true,
+    "trackAPICalls": true,
+    "captureFailedRequests": true
+  }
+}
