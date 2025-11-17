@@ -11,6 +11,7 @@ This repository provides automated browser testing for the IDC web portal at htt
 - Dynamic content loading
 - Configurable test scenarios
 - Reference result verification
+- **Automatic government warning popup dismissal**
 
 ## Features
 
@@ -20,6 +21,7 @@ This repository provides automated browser testing for the IDC web portal at htt
 - **Screenshots**: Automatic screenshot capture for visual verification
 - **Multiple Triggers**: Run on push, pull request, schedule, or manually
 - **Comprehensive Reports**: HTML reports with videos and traces
+- **Smart Popup Handling**: Automatically detects and closes government warning dialogs
 
 ## Quick Start
 
@@ -133,6 +135,17 @@ The automated testing workflow (`.github/workflows/test.yml`) runs:
    - Saves page metadata
    - Captures element counts
    - Creates reference screenshot
+
+### Government Warning Popup Handling
+
+All tests automatically detect and close the government warning popup that appears on first visit:
+
+- **Automatic Detection**: Tests check for common warning dialog patterns
+- **Multiple Selectors**: Supports various button texts ("OK", "I Agree", "Accept", "Continue")
+- **Graceful Handling**: If no popup is found, tests continue normally
+- **Logging**: All popup interactions are logged for debugging
+
+The popup is handled immediately after page navigation and before any test assertions.
 
 ## Reference Results
 

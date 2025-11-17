@@ -19,6 +19,49 @@ async function waitForPageReady(page, timeout = config.pageLoadTimeout) {
 }
 
 /**
+ * Helper function to close the government warning popup
+ * The popup appears on first visit and needs to be dismissed
+ */
+async function closeGovernmentWarningPopup(page) {
+  try {
+    console.log('Checking for government warning popup...');
+    
+    // Common selectors for government warning dialogs
+    const okButtonSelectors = [
+      'button:has-text("OK")',
+      'button:has-text("I Agree")',
+      'button:has-text("Accept")',
+      'button:has-text("Continue")',
+      '[data-dismiss="modal"]:has-text("OK")',
+      '.modal button:has-text("OK")',
+      '#warning-dialog button:has-text("OK")',
+      'button[type="button"]:has-text("OK")'
+    ];
+    
+    // Try each selector with a short timeout
+    for (const selector of okButtonSelectors) {
+      const button = page.locator(selector).first();
+      const isVisible = await button.isVisible({ timeout: 3000 }).catch(() => false);
+      
+      if (isVisible) {
+        console.log(`Found warning popup, clicking OK button: ${selector}`);
+        await button.click();
+        // Wait for popup to close
+        await page.waitForTimeout(1000);
+        console.log('Government warning popup closed');
+        return true;
+      }
+    }
+    
+    console.log('No government warning popup found');
+    return false;
+  } catch (error) {
+    console.log('Error while checking for government warning popup:', error.message);
+    return false;
+  }
+}
+
+/**
  * Helper to capture network requests
  */
 function setupNetworkMonitoring(page) {
@@ -65,6 +108,9 @@ test.describe('IDC Web Portal - Explore Page Tests', () => {
       waitUntil: 'domcontentloaded',
       timeout: config.pageLoadTimeout 
     });
+
+    // Close government warning popup if it appears
+    await closeGovernmentWarningPopup(page);
 
     console.log('Waiting for page to be fully loaded...');
     await waitForPageReady(page);
@@ -136,6 +182,9 @@ test.describe('IDC Web Portal - Explore Page Tests', () => {
       timeout: config.pageLoadTimeout 
     });
 
+    // Close government warning popup if it appears
+    await closeGovernmentWarningPopup(page);
+
     if (config.tests.databaseInteraction.waitForNetworkIdle) {
       await waitForPageReady(page);
     }
@@ -178,6 +227,9 @@ test.describe('IDC Web Portal - Explore Page Tests', () => {
       timeout: config.pageLoadTimeout 
     });
 
+    // Close government warning popup if it appears
+    await closeGovernmentWarningPopup(page);
+
     await waitForPageReady(page);
 
     const selectors = config.tests.filterInteraction.selectors;
@@ -216,6 +268,9 @@ test.describe('IDC Web Portal - Explore Page Tests', () => {
       waitUntil: 'domcontentloaded',
       timeout: config.pageLoadTimeout 
     });
+
+    // Close government warning popup if it appears
+    await closeGovernmentWarningPopup(page);
 
     await waitForPageReady(page);
 
@@ -262,6 +317,9 @@ test.describe('IDC Web Portal - Explore Page Tests', () => {
       timeout: config.pageLoadTimeout 
     });
 
+    // Close government warning popup if it appears
+    await closeGovernmentWarningPopup(page);
+
     await waitForPageReady(page);
 
     const selectors = config.tests.cartFunctionality.selectors;
@@ -298,6 +356,9 @@ test.describe('IDC Web Portal - Explore Page Tests', () => {
       waitUntil: 'domcontentloaded',
       timeout: config.pageLoadTimeout 
     });
+
+    // Close government warning popup if it appears
+    await closeGovernmentWarningPopup(page);
 
     await waitForPageReady(page);
 
