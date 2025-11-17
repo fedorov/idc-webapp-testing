@@ -26,34 +26,51 @@ async function closeGovernmentWarningPopup(page) {
   try {
     console.log('Checking for government warning popup...');
     
-    // Common selectors for government warning dialogs
+    // First check if the gov_warning div exists
+    const govWarning = page.locator('#gov_warning');
+    const isVisible = await govWarning.isVisible({ timeout: 3000 }).catch(() => false);
+    
+    if (!isVisible) {
+      console.log('No government warning popup found (#gov_warning not visible)');
+      return false;
+    }
+    
+    console.log('Government warning popup detected (#gov_warning is visible)');
+    
+    // Try to find and click the OK button within the gov_warning div
     const okButtonSelectors = [
-      'button:has-text("OK")',
-      'button:has-text("I Agree")',
-      'button:has-text("Accept")',
-      'button:has-text("Continue")',
-      '[data-dismiss="modal"]:has-text("OK")',
-      '.modal button:has-text("OK")',
-      '#warning-dialog button:has-text("OK")',
-      'button[type="button"]:has-text("OK")'
+      '#gov_warning button:has-text("OK")',
+      '#gov_warning button:has-text("I Agree")',
+      '#gov_warning button:has-text("Accept")',
+      '#gov_warning button:has-text("Continue")',
+      '#gov_warning button[type="button"]',
+      '#gov_warning .btn',
+      '#gov_warning button'
     ];
     
-    // Try each selector with a short timeout
     for (const selector of okButtonSelectors) {
       const button = page.locator(selector).first();
-      const isVisible = await button.isVisible({ timeout: 3000 }).catch(() => false);
+      const buttonVisible = await button.isVisible({ timeout: 1000 }).catch(() => false);
       
-      if (isVisible) {
-        console.log(`Found warning popup, clicking OK button: ${selector}`);
+      if (buttonVisible) {
+        console.log(`Found OK button with selector: ${selector}`);
         await button.click();
-        // Wait for popup to close
+        console.log('Clicked OK button');
+        
+        // Wait for the popup to be hidden/removed
+        await page.waitForSelector('#gov_warning', { state: 'hidden', timeout: 5000 }).catch(() => {
+          console.log('Warning: #gov_warning did not disappear after clicking, but continuing...');
+        });
+        
+        // Additional wait to ensure the page has settled
         await page.waitForTimeout(1000);
+        
         console.log('Government warning popup closed');
         return true;
       }
     }
     
-    console.log('No government warning popup found');
+    console.log('Warning: Could not find OK button in #gov_warning popup');
     return false;
   } catch (error) {
     console.log('Error while checking for government warning popup:', error.message);

@@ -140,8 +140,9 @@ The automated testing workflow (`.github/workflows/test.yml`) runs:
 
 All tests automatically detect and close the government warning popup that appears on first visit:
 
-- **Automatic Detection**: Tests check for common warning dialog patterns
+- **Automatic Detection**: Tests specifically look for the `#gov_warning` element
 - **Multiple Selectors**: Supports various button texts ("OK", "I Agree", "Accept", "Continue")
+- **Wait for Closure**: Verifies the popup is actually hidden before proceeding
 - **Graceful Handling**: If no popup is found, tests continue normally
 - **Logging**: All popup interactions are logged for debugging
 
