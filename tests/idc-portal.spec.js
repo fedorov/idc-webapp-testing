@@ -21,17 +21,18 @@ async function waitForPageReady(page, timeout = config.pageLoadTimeout) {
 /**
  * Helper function to close the government warning popup
  * The popup appears on first visit and needs to be dismissed
+ * It may take some time to appear after page load
  */
 async function closeGovernmentWarningPopup(page) {
   try {
     console.log('Checking for government warning popup...');
     
-    // First check if the gov_warning div exists
+    // Wait longer for the gov_warning div to appear (popup may be triggered by JS after page load)
     const govWarning = page.locator('#gov_warning');
-    const isVisible = await govWarning.isVisible({ timeout: 3000 }).catch(() => false);
+    const isVisible = await govWarning.isVisible({ timeout: 10000 }).catch(() => false);
     
     if (!isVisible) {
-      console.log('No government warning popup found (#gov_warning not visible)');
+      console.log('No government warning popup found (#gov_warning not visible after 10s)');
       return false;
     }
     
@@ -50,7 +51,7 @@ async function closeGovernmentWarningPopup(page) {
     
     for (const selector of okButtonSelectors) {
       const button = page.locator(selector).first();
-      const buttonVisible = await button.isVisible({ timeout: 1000 }).catch(() => false);
+      const buttonVisible = await button.isVisible({ timeout: 2000 }).catch(() => false);
       
       if (buttonVisible) {
         console.log(`Found OK button with selector: ${selector}`);
@@ -62,8 +63,8 @@ async function closeGovernmentWarningPopup(page) {
           console.log('Warning: #gov_warning did not disappear after clicking, but continuing...');
         });
         
-        // Additional wait to ensure the page has settled
-        await page.waitForTimeout(1000);
+        // Additional wait to ensure the page has settled after popup closes
+        await page.waitForTimeout(2000);
         
         console.log('Government warning popup closed');
         return true;
@@ -126,11 +127,11 @@ test.describe('IDC Web Portal - Explore Page Tests', () => {
       timeout: config.pageLoadTimeout 
     });
 
-    // Close government warning popup if it appears
-    await closeGovernmentWarningPopup(page);
-
     console.log('Waiting for page to be fully loaded...');
     await waitForPageReady(page);
+
+    // Close government warning popup if it appears (after page is fully loaded)
+    await closeGovernmentWarningPopup(page);
 
     // Take a screenshot for reference
     await page.screenshot({ 
@@ -199,9 +200,6 @@ test.describe('IDC Web Portal - Explore Page Tests', () => {
       timeout: config.pageLoadTimeout 
     });
 
-    // Close government warning popup if it appears
-    await closeGovernmentWarningPopup(page);
-
     if (config.tests.databaseInteraction.waitForNetworkIdle) {
       await waitForPageReady(page);
     }
@@ -210,6 +208,9 @@ test.describe('IDC Web Portal - Explore Page Tests', () => {
     if (config.tests.databaseInteraction.waitAfterLoad) {
       await page.waitForTimeout(config.tests.databaseInteraction.waitAfterLoad);
     }
+
+    // Close government warning popup if it appears (after page is fully loaded)
+    await closeGovernmentWarningPopup(page);
 
     // Check for data-related content
     const pageContent = await page.content();
@@ -244,10 +245,10 @@ test.describe('IDC Web Portal - Explore Page Tests', () => {
       timeout: config.pageLoadTimeout 
     });
 
-    // Close government warning popup if it appears
-    await closeGovernmentWarningPopup(page);
-
     await waitForPageReady(page);
+
+    // Close government warning popup if it appears (after page is fully loaded)
+    await closeGovernmentWarningPopup(page);
 
     const selectors = config.tests.filterInteraction.selectors;
     
@@ -286,10 +287,10 @@ test.describe('IDC Web Portal - Explore Page Tests', () => {
       timeout: config.pageLoadTimeout 
     });
 
-    // Close government warning popup if it appears
-    await closeGovernmentWarningPopup(page);
-
     await waitForPageReady(page);
+
+    // Close government warning popup if it appears (after page is fully loaded)
+    await closeGovernmentWarningPopup(page);
 
     // Look for data tables
     let tableFound = false;
@@ -334,10 +335,10 @@ test.describe('IDC Web Portal - Explore Page Tests', () => {
       timeout: config.pageLoadTimeout 
     });
 
-    // Close government warning popup if it appears
-    await closeGovernmentWarningPopup(page);
-
     await waitForPageReady(page);
+
+    // Close government warning popup if it appears (after page is fully loaded)
+    await closeGovernmentWarningPopup(page);
 
     const selectors = config.tests.cartFunctionality.selectors;
     
@@ -374,10 +375,10 @@ test.describe('IDC Web Portal - Explore Page Tests', () => {
       timeout: config.pageLoadTimeout 
     });
 
-    // Close government warning popup if it appears
-    await closeGovernmentWarningPopup(page);
-
     await waitForPageReady(page);
+
+    // Close government warning popup if it appears (after page is fully loaded)
+    await closeGovernmentWarningPopup(page);
 
     // Collect comprehensive reference data
     const title = await page.title();
