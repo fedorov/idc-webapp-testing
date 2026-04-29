@@ -54,7 +54,14 @@ test.describe('IDC Web Portal - Explore Page Tests', () => {
 
     expect(missingKeywords, `Missing expected keywords: ${missingKeywords.join(', ')}`).toHaveLength(0);
 
-    await page.screenshot({ path: 'test-results/database-interaction.png' });
+    // Capture the first visible table as evidence of database-driven content
+    const tableEl = page.locator('table').first();
+    const tableVisible = await tableEl.isVisible().catch(() => false);
+    if (tableVisible) {
+      await tableEl.screenshot({ path: 'test-results/database-interaction.png' });
+    } else {
+      await page.screenshot({ path: 'test-results/database-interaction.png' });
+    }
   });
 
   test('should have a meaningful number of filter elements', async () => {
@@ -66,7 +73,14 @@ test.describe('IDC Web Portal - Explore Page Tests', () => {
       config.tests.filterInteraction.minFilterCount ?? 5
     );
 
-    await page.screenshot({ path: 'test-results/filter-panel.png' });
+    // Capture the first filter panel element
+    const filterEl = page.locator('[class*="filter"], [id*="filter"]').first();
+    const filterVisible = await filterEl.isVisible().catch(() => false);
+    if (filterVisible) {
+      await filterEl.screenshot({ path: 'test-results/filter-panel.png' });
+    } else {
+      await page.screenshot({ path: 'test-results/filter-panel.png' });
+    }
   });
 
   test('should have data tables with meaningful content', async () => {
@@ -84,7 +98,14 @@ test.describe('IDC Web Portal - Explore Page Tests', () => {
       config.tests.dataTableVerification.minRowCount
     );
 
-    await page.screenshot({ path: 'test-results/data-tables.png' });
+    // Capture the first data table
+    const tableEl = page.locator('table').first();
+    const tableVisible = await tableEl.isVisible().catch(() => false);
+    if (tableVisible) {
+      await tableEl.screenshot({ path: 'test-results/data-tables.png' });
+    } else {
+      await page.screenshot({ path: 'test-results/data-tables.png' });
+    }
   });
 
   test('should have cart/selection UI elements present', async () => {
@@ -100,7 +121,14 @@ test.describe('IDC Web Portal - Explore Page Tests', () => {
       .count();
     expect(cartElements, 'No cart UI elements found in DOM').toBeGreaterThanOrEqual(1);
 
-    await page.screenshot({ path: 'test-results/cart-functionality.png' });
+    // Capture the cart element
+    const cartEl = page.locator('[class*="cart"], [id*="cart"]').first();
+    const cartVisible = await cartEl.isVisible().catch(() => false);
+    if (cartVisible) {
+      await cartEl.screenshot({ path: 'test-results/cart-functionality.png' });
+    } else {
+      await page.screenshot({ path: 'test-results/cart-functionality.png' });
+    }
   });
 
   test('should apply a filter and reflect the change in URL or page state', async () => {

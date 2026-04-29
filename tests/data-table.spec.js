@@ -38,7 +38,8 @@ test.describe('IDC Portal - Data Tables', () => {
       config.tests.dataTableVerification.minRowCount
     );
 
-    await page.screenshot({ path: 'test-results/data-table-overview.png' });
+    const firstTable = page.locator('table').first();
+    await firstTable.screenshot({ path: 'test-results/data-table-overview.png' });
   });
 
   test('table cells contain non-empty text', async () => {

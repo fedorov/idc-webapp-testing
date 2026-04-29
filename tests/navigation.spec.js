@@ -31,7 +31,15 @@ test.describe('IDC Portal - Navigation', () => {
     }
 
     expect(navFound, 'No navigation element found on the page').toBeTruthy();
-    await page.screenshot({ path: 'test-results/navigation-menu.png' });
+
+    // Capture the nav/header element specifically
+    const navEl = page.locator('nav, header, [role="navigation"]').first();
+    const navElVisible = await navEl.isVisible().catch(() => false);
+    if (navElVisible) {
+      await navEl.screenshot({ path: 'test-results/navigation-menu.png' });
+    } else {
+      await page.screenshot({ path: 'test-results/navigation-menu.png' });
+    }
   });
 
   test('navigation contains expected portal links', async () => {
