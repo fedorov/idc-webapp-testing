@@ -1,258 +1,140 @@
 # GitHub Actions Workflow Guide
 
-This document explains how the automated testing workflow operates and how to use it.
-
 ## Workflow Overview
 
-The GitHub Actions workflow (`.github/workflows/test.yml`) automatically tests the IDC web portal whenever:
+The workflow (`.github/workflows/test.yml`) runs **two jobs** via a matrix — one for staging, one for production — with independent triggers for each.
 
-1. Code is pushed to `main` or `master` branch
-2. A pull request is opened targeting `main` or `master`
-3. Manually triggered via GitHub UI
-4. Daily at 2 AM UTC (scheduled run)
+| Job | Triggers | Portal URL |
+|-----|----------|------------|
+| **staging** | push to main/master, PRs, daily 2 AM UTC, manual | `PORTAL_URL` repository variable |
+| **production** | weekly Monday 3 AM UTC, manual | `https://portal.imaging.datacommons.cancer.gov/explore/` |
 
-## Workflow Steps
+Both jobs install Chromium and Firefox, run the full test suite, write a job summary, and upload artifacts.
 
-The workflow performs the following steps:
+## Viewing Results
 
-1. **Checkout repository** - Gets the latest code
-2. **Setup Node.js** - Installs Node.js 20 with npm caching
-3. **Install dependencies** - Runs `npm ci` to install packages
-4. **Install Playwright browsers** - Downloads Chromium for testing
-5. **Run tests** - Executes the test suite
-6. **Upload artifacts** - Saves test results, screenshots, and reports
+1. Go to **Actions** tab → click a run → select the staging or production job
+2. **Job summary** (top of job page) — pass/fail table written by the workflow
+3. **Artifacts** (bottom of job page, retained 30 days):
+   - `test-results-staging` / `test-results-production` — JSON results, screenshots, HTML report
+   - `reference-results-staging` / `reference-results-production` — per-run baseline snapshot
 
-## Viewing Test Results
+To open the interactive HTML report locally after downloading:
+```bash
+unzip test-results-staging.zip
+npx playwright show-report playwright-report/
+```
 
-After a workflow run completes:
+## Manual Trigger
 
-1. Go to the **Actions** tab in GitHub
-2. Click on a workflow run
-3. Scroll down to **Artifacts** section
-4. Download any of the following:
-   - **test-results** - JSON results and screenshots
-   - **screenshots** - PNG images from test runs
-   - **reference-results** - Baseline comparison data
-   - **playwright-report** - Interactive HTML report
+1. **Actions** tab → "IDC Web Portal Testing" → **Run workflow**
+2. Optionally enter a `portal_url` to override both jobs
+3. Both staging and production jobs run when triggered manually
 
-## Manual Workflow Trigger
+## Portal URL Configuration
 
-To manually run the tests:
+The staging job uses the `PORTAL_URL` **repository variable** (not a secret):
 
-1. Go to **Actions** tab in GitHub
-2. Select "IDC Web Portal Testing" workflow
-3. Click "Run workflow" button
-4. Choose branch (default: main)
-5. Click "Run workflow"
+1. **Settings** → **Secrets and variables** → **Actions** → **Variables** tab
+2. Create or update `PORTAL_URL` (e.g. `https://testing-portal.canceridc.dev/explore/`)
+3. If unset, tests fall back to the default in `test-config.json`
+
+The production job always uses `https://portal.imaging.datacommons.cancer.gov/explore/` — no configuration needed.
 
 ## Workflow Configuration
 
 ### Timeout
 
-The workflow has a 30-minute timeout. Modify in `.github/workflows/test.yml`:
-
 ```yaml
-timeout-minutes: 30  # Increase if needed
+timeout-minutes: 45
 ```
 
-### Test Parallelization
+The suite runs in ~40s (Chromium) or ~80s (both browsers). 45 minutes is generous headroom for slow portal days and CI queue time.
 
-Currently runs serially in CI. To enable parallel testing:
+### Workers
 
-In `playwright.config.js`:
 ```javascript
-workers: process.env.CI ? 2 : undefined,  // Change from 1 to 2
+// playwright.config.js
+workers: process.env.CI ? 2 : undefined,
 ```
 
-### Browser Selection
+Two workers run spec files in parallel on CI. Each spec file loads the portal once via `beforeAll`, so two portal loads happen simultaneously at most.
 
-Currently tests only on Chromium. To add more browsers:
+### Retries
 
-In `playwright.config.js`:
 ```javascript
-projects: [
-  {
-    name: 'chromium',
-    use: { ...devices['Desktop Chrome'] },
-  },
-  {
-    name: 'firefox',  // Uncomment to enable
-    use: { ...devices['Desktop Firefox'] },
-  },
-  {
-    name: 'webkit',   // Uncomment to enable
-    use: { ...devices['Desktop Safari'] },
-  },
-],
+retries: process.env.CI ? 2 : 0,
 ```
 
-Then update workflow to install all browsers:
+### Browser Installation
+
 ```yaml
 - name: Install Playwright browsers
-  run: npx playwright install --with-deps  # Remove 'chromium'
+  run: npx playwright install --with-deps chromium firefox
 ```
 
-### Retry Configuration
+Both Chromium and Firefox are installed. To add WebKit (Safari), append `webkit` and add a project entry in `playwright.config.js`.
 
-Tests retry twice on failure in CI. To modify:
+### Changing the Schedule
 
-In `playwright.config.js`:
-```javascript
-retries: process.env.CI ? 2 : 0,  // Change number of retries
-```
+Edit the `schedule` block in `.github/workflows/test.yml`:
 
-## Scheduled Testing
-
-The workflow runs daily at 2 AM UTC. To change schedule:
-
-In `.github/workflows/test.yml`:
 ```yaml
 schedule:
-  - cron: '0 2 * * *'  # Minute Hour Day Month DayOfWeek
+  - cron: '0 2 * * *'   # daily staging — adjust time as needed
+  - cron: '0 3 * * 1'   # weekly production — Monday 3 AM UTC
 ```
 
 Examples:
-- `'0 */6 * * *'` - Every 6 hours
-- `'0 8 * * 1'` - Every Monday at 8 AM UTC
-- `'0 0 * * 0'` - Every Sunday at midnight UTC
-
-## Environment Variables
-
-The workflow uses environment variables for configuration:
-
-### Portal URL Configuration
-
-The test URL is controlled by the `PORTAL_URL` repository variable:
-
-**To set the PORTAL_URL variable:**
-
-1. Go to repository **Settings**
-2. Select **Secrets and variables** > **Actions** > **Variables** tab
-3. Click **New repository variable**
-4. Name: `PORTAL_URL`
-5. Value: Your portal URL (e.g., `https://testing-portal.canceridc.dev/explore/`)
-6. Click **Add variable**
-
-If `PORTAL_URL` is not set, tests will use the default URL from `test-config.json`.
-
-### Adding Custom Environment Variables
-
-Add environment variables for testing:
-
-In `.github/workflows/test.yml`:
-```yaml
-- name: Run tests
-  run: npm test
-  env:
-    CI: true
-    PORTAL_URL: ${{ vars.PORTAL_URL }}  # Repository variable
-    TEST_ENV: testing  # Custom variable
-    API_KEY: ${{ secrets.API_KEY }}  # From GitHub Secrets
-```
-
-## Secrets Management
-
-To add secrets (like API keys):
-
-1. Go to repository **Settings**
-2. Select **Secrets and variables** > **Actions**
-3. Click **New repository secret**
-4. Add name and value
-5. Reference in workflow with `${{ secrets.SECRET_NAME }}`
-
-## Artifacts Retention
-
-Artifacts are kept for 30 days. To change:
-
-In `.github/workflows/test.yml`:
-```yaml
-retention-days: 30  # Change to desired days (1-90)
-```
-
-## Notifications
-
-To get notified of test failures:
-
-1. Go to repository **Settings**
-2. Select **Notifications**
-3. Enable "Actions" notifications
-4. Or use GitHub's watch feature
-
-## Troubleshooting
-
-### Tests Timing Out
-
-Increase timeout in workflow:
-```yaml
-timeout-minutes: 60  # Increase from 30
-```
-
-And in test config:
-```json
-{
-  "pageLoadTimeout": 120000  // 2 minutes
-}
-```
-
-### Browser Installation Fails
-
-The workflow installs Chromium with dependencies. If it fails:
-```yaml
-- name: Install Playwright browsers
-  run: npx playwright install --with-deps chromium
-```
-
-### Disk Space Issues
-
-If artifacts are too large, reduce screenshot quality or disable full page screenshots in tests.
-
-### Network Issues
-
-If the portal is unreachable from GitHub Actions:
-- Check if the URL is publicly accessible
-- Verify no firewall blocking GitHub's IP ranges
-- Consider adding retry logic
-
-## Best Practices
-
-1. **Review test results regularly** - Check the Actions tab daily
-2. **Investigate failures promptly** - Download artifacts to debug
-3. **Update reference results** - When portal changes, update expected values
-4. **Monitor run duration** - Optimize if tests take too long
-5. **Keep dependencies updated** - Regularly update Playwright and Node.js
-
-## Integration with Pull Requests
-
-Tests automatically run on PRs:
-
-- ✅ Green check = All tests passed
-- ❌ Red X = Tests failed
-- 🟡 Yellow dot = Tests running
-
-Click "Details" next to the check to view results.
+- `'0 */6 * * *'` — every 6 hours
+- `'0 8 * * 1-5'` — weekdays at 8 AM UTC
+- `'0 0 * * 0'` — Sundays at midnight UTC
 
 ## Local vs CI Differences
 
-| Feature | Local | CI |
-|---------|-------|-----|
+| Setting | Local | CI |
+|---------|-------|----|
+| Workers | unlimited | 2 |
 | Retries | 0 | 2 |
-| Workers | Unlimited | 1 |
-| Screenshots | Only on failure | Only on failure |
-| Videos | On failure | On failure |
-| Headed mode | Optional | Headless only |
+| Browsers | Chromium + Firefox | Chromium + Firefox |
+| Screenshots | on failure | on failure |
+| Videos | on failure | on failure |
+| Traces | on first retry | on first retry |
+| Headed | optional | headless only |
 
-## Advanced: Matrix Testing
+## Secrets and Variables
 
-To test multiple configurations:
+**Repository variables** (non-sensitive, visible in logs):
+- `PORTAL_URL` — staging portal URL
+
+**Repository secrets** (encrypted, redacted in logs): currently none required. To add one for future use (e.g. an API key):
+1. **Settings** → **Secrets and variables** → **Actions** → **Secrets** tab
+2. Reference in workflow with `${{ secrets.MY_SECRET }}`
+
+## Troubleshooting CI Failures
+
+### Tests fail only on CI, pass locally
+
+- Confirm the portal URL is reachable from GitHub's hosted runners (no firewall/IP restrictions)
+- Check the job summary and downloaded HTML report for the specific failing assertion
+- Download the `test-results-staging` artifact and inspect screenshots
+
+### `beforeAll` timeout
+
+Each spec file loads the portal in `beforeAll` with a 180-second timeout. If the portal is slow:
+1. Increase `pageLoadTimeout` in `test-config.json`
+2. Increase `test.setTimeout(180000)` in the relevant `beforeAll`
+3. Increase `timeout-minutes` in the workflow if needed
+
+### Browser installation fails
 
 ```yaml
-strategy:
-  matrix:
-    browser: [chromium, firefox, webkit]
-    
-steps:
-  - name: Install Playwright browsers
-    run: npx playwright install --with-deps ${{ matrix.browser }}
+- name: Install Playwright browsers
+  run: npx playwright install --with-deps chromium firefox
 ```
 
-This creates separate jobs for each browser.
+The `--with-deps` flag installs OS-level dependencies. Remove it only if you manage system packages separately.
+
+### Artifact not found
+
+If `reference-results-{env}` artifact is empty, the `should save comprehensive reference results` test did not run or failed. Check the main test results artifact for details.

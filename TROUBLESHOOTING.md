@@ -1,430 +1,216 @@
-# IDC Portal Testing Troubleshooting Guide
-
-Common issues and solutions when testing the IDC web portal.
+# Troubleshooting Guide
 
 ## Page Load Issues
 
-### Problem: Page Takes Too Long to Load
+### Tests timeout during portal load
 
-**Symptoms:**
-- Tests timeout during page load
-- Error: "Timeout 90000ms exceeded"
+**Symptom:** `TimeoutError: page.waitForLoadState('networkidle') exceeded 90000ms`
+
+The portal takes 15–90 seconds to fully load. `beforeAll` has a 3-minute timeout; the portal navigation itself has a `pageLoadTimeout` (default 90s).
 
 **Solutions:**
 
-1. Increase timeout in `test-config.json`:
-```json
-{
-  "pageLoadTimeout": 120000
-}
+1. Increase `pageLoadTimeout` in `test-config.json`:
+   ```json
+   { "pageLoadTimeout": 120000 }
+   ```
+
+2. Check portal health:
+   ```bash
+   curl -I https://portal.imaging.datacommons.cancer.gov/explore/
+   ```
+
+3. If running against staging, verify the staging URL is up:
+   ```bash
+   curl -I https://testing-portal.canceridc.dev/explore/
+   ```
+
+### Page loads but content is missing
+
+**Symptom:** Screenshots show a blank or partial page; keyword assertions fail.
+
+**Solutions:**
+
+- The portal is a React SPA — all content is database-driven. If the database is slow, content may not render within the timeout. Increase `pageLoadTimeout`.
+- Check network monitoring output in test logs for failed API calls.
+- Run `npm run test:headed` to watch the browser and see what loads.
+
+---
+
+## Regression Tests Skip
+
+**Symptom:** All tests in `regression.spec.js` show as `-` (skipped).
+
+**Cause:** `baseline/reference-results.json` does not exist. The regression tests require a baseline to compare against.
+
+**Solution:** Run the full test suite once to generate the baseline:
+```bash
+npm test
 ```
 
-2. Increase timeout in `playwright.config.js`:
+The `should save comprehensive reference results` test writes `baseline/reference-results.json`. After that, regression tests will run on subsequent executions.
+
+---
+
+## Regression Tests Fail
+
+**Symptom:** Regression test fails with a message like `Button count regression: baseline=57, current=12`.
+
+**Cause A — legitimate portal change:** A new portal version reduced/changed UI elements. This is expected when the portal is updated.
+- Run `npm test`, review the new numbers, commit the updated `baseline/reference-results.json`.
+
+**Cause B — portal is down or degraded:** The portal returned an error page or loaded partially.
+- Check portal status; re-run when the portal is healthy.
+
+**Cause C — threshold too tight:** The portal's element counts vary slightly between renders.
+- Widen the tolerance constants in `regression.spec.js` (currently ±30% for element counts, ±50% for content length).
+
+---
+
+## Filter Interaction Test Skips
+
+**Symptom:** `should apply a filter and reflect the change in URL or page state` is always skipped.
+
+**Cause:** The selector `input[type="checkbox"]:not(:checked)` did not find a visible checkbox within 5 seconds. This can happen on the staging portal if filters render differently.
+
+**Solutions:**
+- Run the test headed (`npm run test:headed`) and inspect what the filter area looks like.
+- Update the checkbox selector in `idc-portal.spec.js` to match the actual filter input selector on your portal.
+
+---
+
+## Element Not Found
+
+**Symptom:** Test fails with `Locator not found` or counts 0 elements.
+
+**Solutions:**
+
+1. Run headed to see the actual page:
+   ```bash
+   npm run test:headed
+   ```
+
+2. Use debug mode to inspect elements interactively:
+   ```bash
+   npm run test:debug
+   ```
+
+3. Confirm what CSS classes the portal is actually using:
+   - Open the portal in a browser
+   - DevTools → Inspector → find the element
+   - Update the selector in `test-config.json` (for configurable selectors) or in the spec file
+
+---
+
+## Tests Pass Locally but Fail on CI
+
+**Cause A — portal unreachable from CI:** GitHub Actions runners have public IPs. If the staging portal has IP restrictions, tests will fail.
+- Verify the portal URL is publicly accessible.
+- Use the production URL (`https://portal.imaging.datacommons.cancer.gov/explore/`) for CI instead.
+
+**Cause B — timing differences:** CI machines are slower than local; the portal may not finish loading within the timeout.
+- Increase `pageLoadTimeout` in `test-config.json`.
+
+**Cause C — `beforeAll` timeout:** The default `beforeAll` timeout matches `playwright.config.js`'s `timeout` (120s). If portal load + popup takes longer, `beforeAll` silently fails and all tests in the spec file are marked as skipped.
+- Each `beforeAll` calls `test.setTimeout(180000)` to extend this. If 180s is still too short, increase it.
+
+---
+
+## Identical Screenshots
+
+**Symptom:** Multiple test screenshots look the same.
+
+**Cause:** Tests sharing a page via `beforeAll` will capture the same viewport if screenshots are not element-scoped. The spec files use `element.screenshot()` to capture the specific feature under test. If a new test uses `page.screenshot()` (viewport), it will look the same as other viewport shots.
+
+**Solution:** Use element-scoped screenshots:
 ```javascript
-timeout: 180 * 1000, // 3 minutes
-```
-
-3. Check portal health:
-```bash
-curl -I https://testing-portal.canceridc.dev/explore/
-```
-
-### Problem: Page Loads but Content is Missing
-
-**Symptoms:**
-- Page loads but tests fail on assertions
-- Screenshots show incomplete page
-
-**Solutions:**
-
-1. Increase wait time after load in `test-config.json`:
-```json
-{
-  "tests": {
-    "databaseInteraction": {
-      "waitAfterLoad": 10000
-    }
-  }
+const el = page.locator('.my-feature').first();
+if (await el.isVisible().catch(() => false)) {
+  await el.screenshot({ path: 'test-results/my-feature.png' });
+} else {
+  await page.screenshot({ path: 'test-results/my-feature.png' });
 }
 ```
 
-2. Check for JavaScript errors in test output
-3. Verify network requests completed successfully
+---
 
-## Selector Issues
+## Flaky Tests
 
-### Problem: Elements Not Found
+**Symptom:** Tests pass sometimes, fail others, with no code changes.
 
-**Symptoms:**
-- Error: "Locator not found"
-- Tests skip finding certain elements
-
-**Solutions:**
-
-1. Inspect the actual HTML structure:
-```bash
-npm run test:headed  # Watch test run in browser
-```
-
-2. Update selectors in `test-config.json`:
-```json
-{
-  "tests": {
-    "pageLoad": {
-      "selectors": {
-        "filterPanel": ".actual-class-name"
-      }
-    }
-  }
-}
-```
-
-3. Use browser DevTools to find correct selectors:
-   - Run test with `--debug` flag
-   - Inspect element in browser
-   - Copy selector
-
-### Problem: Elements Found but Not Visible
-
-**Symptoms:**
-- Element exists but `.isVisible()` returns false
-- Tests timeout waiting for visibility
+The most common causes on the IDC portal:
+- Dynamic data (collection counts change as data is added)
+- Slow portal responses on high-traffic days
 
 **Solutions:**
+- Avoid asserting exact counts; use `toBeGreaterThanOrEqual()` with a floor.
+- For CI, rely on Playwright's built-in 2-retry (`retries: 2` in `playwright.config.js`).
+- Investigate which assertion is flaky and widen its bound.
 
-1. Check if element is hidden by CSS
-2. Wait for animations to complete
-3. Use `.waitForSelector()` with `state: 'visible'`
+---
 
-## Database Interaction Issues
+## Performance
 
-### Problem: Data Not Loading
+### Full suite takes too long
 
-**Symptoms:**
-- Tests pass but reference results show no data
-- Element counts are zero
+With the shared `beforeAll` pattern, the suite runs in ~40 seconds (Chromium) or ~2 minutes (both browsers). If it's taking much longer:
 
-**Solutions:**
+- Each spec file should load the portal exactly once. If a test inside a spec calls `page.goto()` independently, it adds 30–90s. Check for stray navigations.
+- On CI, workers are set to 2. All four spec files run with 2 workers, so they run in two pairs. This is already near-optimal.
 
-1. Increase database wait time:
-```json
-{
-  "tests": {
-    "databaseInteraction": {
-      "waitForNetworkIdle": true,
-      "waitAfterLoad": 10000
-    }
-  }
-}
-```
+### CI job times out
 
-2. Check network monitoring output for failed API calls
+The workflow has a 45-minute timeout. For a healthy portal this is very generous. If CI is timing out:
+- Check if the portal is having an incident.
+- Review the GitHub Actions log to see which step is stuck.
+- Confirm `npx playwright install --with-deps chromium firefox` isn't re-downloading browsers unnecessarily (Node.js caching is configured in the workflow).
 
-3. Verify database is accessible from test environment
-
-### Problem: Inconsistent Data Between Runs
-
-**Symptoms:**
-- Tests pass sometimes, fail other times
-- Reference results vary significantly
-
-**Solutions:**
-
-1. This is expected for a live database
-2. Make assertions more flexible
-3. Focus on structure rather than exact counts
-4. Use ranges instead of exact values
-
-## Network Issues
-
-### Problem: Failed API Requests
-
-**Symptoms:**
-- Network monitoring shows failed requests
-- Data doesn't load properly
-
-**Solutions:**
-
-1. Check network logs in test output:
-```bash
-npm test 2>&1 | grep "Failed requests"
-```
-
-2. Verify API endpoints are accessible:
-```bash
-curl https://testing-portal.canceridc.dev/api/
-```
-
-3. Check for CORS issues in test output
-
-4. Add retry logic for flaky endpoints
-
-### Problem: Tests Work Locally but Fail in CI
-
-**Symptoms:**
-- Tests pass on local machine
-- GitHub Actions tests fail
-
-**Solutions:**
-
-1. Check if portal is accessible from GitHub Actions IPs
-2. Verify no rate limiting or firewall blocking
-3. Increase retries in `playwright.config.js`:
-```javascript
-retries: process.env.CI ? 3 : 0,
-```
-
-## Test Reliability
-
-### Problem: Flaky Tests
-
-**Symptoms:**
-- Tests pass/fail inconsistently
-- Timing-related failures
-
-**Solutions:**
-
-1. Use Playwright's auto-waiting features
-2. Avoid hard-coded `waitForTimeout()` where possible
-3. Wait for specific conditions instead
-4. Increase retry count for flaky tests
-
-### Problem: Tests Pass but Screenshots Show Issues
-
-**Symptoms:**
-- All assertions pass
-- Screenshots reveal problems
-
-**Solutions:**
-
-1. Add more specific assertions
-2. Check for visual elements programmatically
-3. Add custom screenshot comparison tests
-
-## Performance Issues
-
-### Problem: Tests Take Too Long
-
-**Symptoms:**
-- Full test suite takes > 10 minutes
-- CI job times out
-
-**Solutions:**
-
-1. Disable non-critical tests:
-```json
-{
-  "tests": {
-    "cartFunctionality": {
-      "enabled": false
-    }
-  }
-}
-```
-
-2. Run tests in parallel (locally):
-```bash
-npx playwright test --workers=2
-```
-
-3. Use `test.only()` for focused testing during development
-
-### Problem: Too Many Screenshots/Artifacts
-
-**Symptoms:**
-- Artifact storage fills up
-- Downloads are very large
-
-**Solutions:**
-
-1. Reduce screenshot frequency
-2. Use viewport screenshots instead of full page:
-```javascript
-await page.screenshot({ 
-  fullPage: false  // Change from true
-});
-```
-
-3. Compress artifacts before upload
-
-## Configuration Issues
-
-### Problem: Config File Not Found
-
-**Symptoms:**
-- Error: "ENOENT: no such file or directory"
-
-**Solutions:**
-
-1. Verify `test-config.json` exists in root directory
-2. Check file name spelling (case-sensitive)
-3. Ensure file has valid JSON syntax:
-```bash
-cat test-config.json | python -m json.tool
-```
-
-### Problem: Invalid Configuration
-
-**Symptoms:**
-- Tests fail to start
-- JSON parsing errors
-
-**Solutions:**
-
-1. Validate JSON syntax:
-```bash
-npm install -g jsonlint
-jsonlint test-config.json
-```
-
-2. Compare with example configuration
-3. Check for trailing commas (invalid in JSON)
+---
 
 ## Browser Issues
 
-### Problem: Chromium Not Installed
-
-**Symptoms:**
-- Error: "Executable doesn't exist"
-
-**Solutions:**
+### Browser not installed
 
 ```bash
-npx playwright install chromium --with-deps
+npx playwright install --with-deps chromium firefox
 ```
 
-### Problem: Browser Crashes
+### Firefox-specific failures
 
-**Symptoms:**
-- Tests fail with browser crash
-- Error: "Browser closed unexpectedly"
-
-**Solutions:**
-
-1. Update Playwright:
+Some portal features may behave differently on Firefox. Run Chromium-only to isolate:
 ```bash
-npm install -D @playwright/test@latest
-npx playwright install
+npx playwright test --project=chromium
 ```
 
-2. Add more memory if running in container
-3. Disable GPU acceleration if needed
-
-## Debugging Tips
-
-### Enable Verbose Logging
-
-```bash
-DEBUG=pw:api npm test
-```
-
-### Run Single Test
-
-```bash
-npx playwright test -g "should load the explore page"
-```
-
-### Use Debug Mode
-
-```bash
-npm run test:debug
-```
-
-This opens Playwright Inspector for step-by-step debugging.
-
-### Capture Trace
-
-In `playwright.config.js`:
-```javascript
-use: {
-  trace: 'on',  // Always capture trace
-}
-```
-
-View trace:
-```bash
-npx playwright show-trace trace.zip
-```
-
-### Check Test Output
-
-Review detailed output in test results:
-```bash
-cat test-results/results.json | python -m json.tool
-```
-
-## Portal-Specific Issues
-
-### Problem: Cohort/Collection Features Not Working
-
-**Symptoms:**
-- Cart tests fail
-- Filter tests fail
-
-**Solutions:**
-
-1. These may require authentication
-2. Check if features are available on test portal
-3. May need to mock authentication
-
-### Problem: DICOM Viewer Issues
-
-**Symptoms:**
-- Viewer doesn't load
-- Viewer-related tests fail
-
-**Solutions:**
-
-1. DICOM viewer uses WebGL/Canvas
-2. May not work in headless mode
-3. Consider testing in headed mode or skipping
-
-### Problem: BigQuery Export Features
-
-**Symptoms:**
-- Export features not testable
-
-**Solutions:**
-
-1. These require Google Cloud authentication
-2. May need to mock or skip in automated tests
-3. Test only UI presence, not functionality
-
-## Getting Help
-
-If you're still stuck:
-
-1. **Check test output** - Review console logs and error messages
-2. **Capture screenshots** - Enable screenshots for all tests temporarily
-3. **Check portal status** - Verify portal is accessible and functioning
-4. **Review recent changes** - Check if portal was recently updated
-5. **Open an issue** - Provide:
-   - Test output
-   - Screenshots
-   - Configuration files
-   - Steps to reproduce
+---
 
 ## Useful Commands
 
 ```bash
-# Run specific test file
-npx playwright test tests/idc-portal.spec.js
+# Run all tests
+npm test
 
-# Run with UI
-npm run test:headed
+# Chromium only
+npx playwright test --project=chromium
 
-# Debug mode
-npm run test:debug
+# Single spec file
+npx playwright test tests/regression.spec.js
 
-# Show last report
-npm run report
+# Single test by name
+npx playwright test -g "should load the explore page"
 
-# Update snapshots
-npx playwright test --update-snapshots
-
-# List all tests
+# List all tests without running
 npx playwright test --list
 
-# Run tests matching pattern
-npx playwright test -g "database"
+# Watch mode (headed browser)
+npm run test:headed
+
+# Step-through debugger
+npm run test:debug
+
+# Open last HTML report
+npm run report
+
+# Enable verbose Playwright API logging
+DEBUG=pw:api npm test
 ```

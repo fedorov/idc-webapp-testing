@@ -1,267 +1,179 @@
 # IDC Web Portal Automated Testing
 
-Automated testing infrastructure for the [NCI Imaging Data Commons (IDC)](https://portal.imaging.datacommons.cancer.gov/) web portal using Playwright and GitHub Actions.
+Automated browser testing for the [NCI Imaging Data Commons (IDC)](https://portal.imaging.datacommons.cancer.gov/) web portal using Playwright and GitHub Actions.
 
 ## Overview
 
-This repository provides automated browser testing for the IDC web portal. The tests handle the complex nature of the portal, including:
+The suite exercises the IDC explore page end-to-end, covering filters, data tables, navigation, cart UI, and regression detection against a committed baseline. Key design choices:
 
-- Database interactions
-- Long page load times (~1 minute)
-- Dynamic content loading
-- Configurable test scenarios
-- Reference result verification
-- **Automatic government warning popup dismissal**
+- **Shared page state** — each spec file loads the portal once in `beforeAll`, then all tests in that file reuse the same browser page. This cuts runtime from ~9 minutes to ~40 seconds for a full Chromium run.
+- **Two browsers** — Chromium and Firefox run in parallel on CI.
+- **Regression baseline** — `baseline/reference-results.json` is committed to the repo. Regression tests compare live portal metrics against it within tolerance (±30% for element counts, all keywords must be present).
+- **Automatic popup handling** — government warning popup (`#gov_warning`) is dismissed automatically in every spec.
 
-## Features
+## Repository Structure
 
-- **Automated Testing**: GitHub Actions workflow runs tests automatically
-- **Configurable Tests**: Customize test scenarios via `test-config.json`
-- **Reference Results**: Capture and compare against baseline results
-- **Screenshots**: Automatic screenshot capture for visual verification
-- **Multiple Triggers**: Run on push, pull request, schedule, or manually
-- **Comprehensive Reports**: HTML reports with videos and traces
-- **Smart Popup Handling**: Automatically detects and closes government warning dialogs
+```
+tests/
+  helpers/
+    portal.js           # Shared utilities: loadPortalPage, closeGovernmentWarningPopup, etc.
+  idc-portal.spec.js    # Core smoke tests (page load, keywords, filters, cart, tables)
+  data-table.spec.js    # Table content, headers, sort, pagination
+  navigation.spec.js    # Nav presence, link targets, error-page detection
+  regression.spec.js    # Baseline comparison against baseline/reference-results.json
+baseline/
+  reference-results.json  # Committed baseline snapshot (updated on each full test run)
+playwright.config.js
+test-config.json
+```
 
 ## Quick Start
 
 ### Prerequisites
 
 - Node.js 18 or higher
-- npm or yarn
 
 ### Installation
 
 ```bash
-# Clone the repository
 git clone https://github.com/fedorov/idc-webapp-testing.git
 cd idc-webapp-testing
-
-# Install dependencies
 npm install
-
-# Install Playwright browsers
-npx playwright install chromium
+npx playwright install --with-deps chromium firefox
 ```
 
-### Running Tests Locally
+### Running Tests
 
 ```bash
-# Run all tests
+# Run all tests (Chromium + Firefox)
 npm test
 
-# Run tests in headed mode (see browser)
+# Run Chromium only
+npx playwright test --project=chromium
+
+# Run a single spec file
+npx playwright test tests/data-table.spec.js
+
+# Run with a visible browser
 npm run test:headed
 
-# Debug tests interactively
+# Interactive debug mode
 npm run test:debug
 
-# View test report
+# View HTML report
 npm run report
 
-# Run tests against a different URL
-PORTAL_URL=https://example.com/explore npm test
+# Override the portal URL
+PORTAL_URL=https://testing-portal.canceridc.dev/explore/ npm test
 ```
 
 ## Configuration
 
-### Test URL
+### Portal URL
 
-The test URL can be configured in two ways:
+The URL under test is resolved in this priority order:
 
-1. **Default**: Set in `test-config.json` as `testUrl`
-2. **Environment Variable**: Set `PORTAL_URL` environment variable (overrides config file)
+1. `PORTAL_URL` environment variable (used by GitHub Actions)
+2. `testUrl` in `test-config.json` (default: production portal)
 
-In GitHub Actions, the URL is controlled by the `PORTAL_URL` repository variable. To set it:
-1. Go to repository **Settings** → **Secrets and variables** → **Actions** → **Variables**
-2. Create or update `PORTAL_URL` variable with your desired URL
-3. If not set, tests will use the default from `test-config.json`
+### `test-config.json`
 
-### Test Configuration (`test-config.json`)
+Controls per-test thresholds and selectors. Key fields:
 
-Customize test behavior by editing `test-config.json`:
+| Field | Default | Description |
+|-------|---------|-------------|
+| `testUrl` | production portal | URL to test |
+| `pageLoadTimeout` | 90000 | ms to wait for portal load |
+| `tests.filterInteraction.minFilterCount` | 5 | Minimum filter elements required |
+| `tests.dataTableVerification.minRowCount` | 5 | Minimum table rows required |
 
-```json
-{
-  "testUrl": "https://portal.imaging.datacommons.cancer.gov/explore/",
-  "pageLoadTimeout": 90000,
-  "tests": {
-    "pageLoad": {
-      "enabled": true,
-      "description": "Verify the portal loads successfully"
-    },
-    "databaseInteraction": {
-      "enabled": true,
-      "description": "Test database interactions",
-      "waitForNetworkIdle": true
-    },
-    "exploration": {
-      "enabled": true,
-      "description": "Test exploration features"
-    }
-  }
-}
-```
+### `playwright.config.js`
 
-### Playwright Configuration (`playwright.config.js`)
+| Setting | Local | CI |
+|---------|-------|----|
+| Workers | unlimited | 2 |
+| Retries | 0 | 2 |
+| Browsers | Chromium + Firefox | Chromium + Firefox |
+| Screenshots | on failure | on failure |
+| Videos | on failure | on failure |
+| Traces | on first retry | on first retry |
 
-- Timeout: 2 minutes per test (accommodates slow load times)
-- Retries: 2 retries on CI, 0 locally
-- Screenshots: Captured on failure
-- Videos: Recorded on failure
-- Traces: Captured on first retry
+## Test Suite
 
-## GitHub Actions Workflow
+### Spec files
 
-The automated testing workflow (`.github/workflows/test.yml`) runs:
+| File | Tests | What it covers |
+|------|-------|----------------|
+| `idc-portal.spec.js` | 7 | Page load, keywords, filters, tables, cart, filter interaction, baseline save |
+| `data-table.spec.js` | 5 | Table presence, cell content, column headers, sort, pagination |
+| `navigation.spec.js` | 5 | Nav menu, link targets, error-page detection, external links |
+| `regression.spec.js` | 7 | Live metrics vs `baseline/reference-results.json` |
 
-- On every push to main/master branch
-- On every pull request
-- Daily at 2 AM UTC (scheduled)
-- Manually via workflow dispatch
+Total: **24 tests × 2 browsers = 48 tests**, completing in ~40 seconds.
 
-### Workflow Outputs
+### Regression baseline
 
-- **Test Results**: JSON results and logs
-- **Screenshots**: PNG screenshots of test runs
-- **Reference Results**: Baseline data for comparison
-- **HTML Report**: Interactive Playwright report
-
-## Test Structure
-
-### Available Tests
-
-1. **Page Load Test**: Verifies the explore page loads successfully
-   - Checks page title
-   - Validates content presence
-   - Captures full page screenshot
-
-2. **Database Interaction Test**: Tests database connectivity
-   - Waits for network idle
-   - Verifies data-related elements
-   - Captures data view screenshot
-
-3. **Exploration Features Test**: Tests interactive elements
-   - Counts buttons and links
-   - Verifies interactive components
-   - Tests common exploration patterns
-
-4. **Reference Results Test**: Generates baseline data
-   - Saves page metadata
-   - Captures element counts
-   - Creates reference screenshot
-
-### Government Warning Popup Handling
-
-All tests automatically detect and close the government warning popup that appears on first visit:
-
-- **Automatic Detection**: Tests specifically look for the `#gov_warning` element with 10-second timeout
-- **Delayed Check**: Popup is checked AFTER page is fully loaded (network idle), as it may be triggered by JavaScript
-- **Multiple Selectors**: Supports various button texts ("OK", "I Agree", "Accept", "Continue")
-- **Wait for Closure**: Verifies the popup is actually hidden before proceeding
-- **Graceful Handling**: If no popup is found, tests continue normally
-- **Logging**: All popup interactions are logged for debugging
-
-The popup check happens after `waitForPageReady()` to ensure any JavaScript-triggered popups have time to appear.
-
-## Reference Results
-
-Tests generate reference results in `test-results/reference-results.json`:
+`baseline/reference-results.json` is a snapshot of the portal's "known good" state:
 
 ```json
 {
-  "timestamp": "2024-01-01T00:00:00.000Z",
-  "url": "https://portal.imaging.datacommons.cancer.gov/explore/",
-  "title": "IDC Portal",
-  "contentLength": 50000,
-  "hasDataElements": true,
-  "elementCounts": {
-    "buttons": 25,
-    "links": 150,
-    "inputs": 10
-  }
+  "contentLength": 2467698,
+  "elementCounts": { "buttons": 57, "links": 477, "tables": 4, ... },
+  "foundKeywords": ["imaging", "data", "commons", "explore", "portal", "collection", "cohort"],
+  "testResults": { "hasFilterPanel": true, "hasTables": true, "hasCart": true, ... }
 }
 ```
+
+**How it is created** — there is no separate baseline generation step. The last test in `idc-portal.spec.js` (`should save comprehensive reference results`) navigates the live portal, collects these metrics, and writes them to `baseline/reference-results.json` on every full test run. So the first `npm test` creates the baseline; all subsequent runs both update it and check against the previous version.
+
+**How regression tests use it** — `regression.spec.js` loads the file at startup, navigates the portal fresh, measures the same metrics, and asserts they are within tolerance: ±30% for element counts, ±50% for content length, zero missing keywords, ±1 table count.
+
+**Updating intentionally** — if the portal changes legitimately (redesign, new features), run `npm test` and commit the updated `baseline/reference-results.json`. That new snapshot becomes the regression reference going forward.
+
+**Why it lives in `baseline/` not `test-results/`** — Playwright clears the `test-results/` directory at the start of every run. Storing the baseline there would erase it before regression tests could read it.
+
+### Government warning popup
+
+All spec files call `closeGovernmentWarningPopup()` from `tests/helpers/portal.js`. It waits up to 10 seconds for `#gov_warning` to appear after page load, then clicks the dismiss button. Tests continue normally if no popup is found.
+
+## GitHub Actions
+
+The workflow (`.github/workflows/test.yml`) runs two jobs via a matrix:
+
+| Job | Trigger | Portal |
+|-----|---------|--------|
+| staging | push, PR, daily at 2 AM UTC, manual | `PORTAL_URL` repository variable |
+| production | weekly Monday 3 AM UTC, manual | `https://portal.imaging.datacommons.cancer.gov/explore/` |
+
+Each run posts a pass/fail summary to the GitHub Actions job summary tab and uploads artifacts retained for 30 days.
+
+### Setting `PORTAL_URL`
+
+1. **Settings** → **Secrets and variables** → **Actions** → **Variables**
+2. Create variable `PORTAL_URL` with your staging URL (e.g. `https://testing-portal.canceridc.dev/explore/`)
+3. If unset, the production URL from `test-config.json` is used
+
+### Artifacts
+
+| Artifact | Contents |
+|----------|----------|
+| `test-results-staging` / `test-results-production` | JSON results, screenshots, HTML report |
+| `reference-results-staging` / `reference-results-production` | Per-run baseline snapshot |
 
 ## Troubleshooting
 
-### Tests Timeout
-
-If tests timeout, try increasing the timeout in `playwright.config.js` or `test-config.json`:
-
-```javascript
-timeout: 180 * 1000, // 3 minutes
-```
-
-### Network Issues
-
-The portal requires internet access. Ensure:
-- Network connectivity is stable
-- The portal URL is accessible
-- No firewall blocking
-
-### Browser Installation
-
-If browsers aren't installed:
-
-```bash
-npx playwright install --with-deps chromium
-```
-
-## Development
-
-### Adding New Tests
-
-Create a new test file in the `tests/` directory:
-
-```javascript
-import { test, expect } from '@playwright/test';
-
-test('my new test', async ({ page }) => {
-  await page.goto('https://portal.imaging.datacommons.cancer.gov/explore/');
-  // Your test code here
-});
-```
-
-### Modifying Test Configuration
-
-Edit `test-config.json` to:
-- Enable/disable specific tests
-- Change timeouts
-- Add new test scenarios
-- Modify expected results
-
-## CI/CD Integration
-
-The GitHub Actions workflow automatically:
-1. Checks out the code
-2. Installs Node.js dependencies
-3. Installs Playwright browsers
-4. Runs the test suite
-5. Uploads artifacts (reports, screenshots, reference results)
-
-Access artifacts from the GitHub Actions UI under each workflow run.
-
-## Related Projects
-
-- [IDC Web App Source](https://github.com/ImagingDataCommons/IDC-WebApp)
-- [IDC Portal](https://portal.imaging.datacommons.cancer.gov/)
-
-## License
-
-Apache License 2.0 - See [LICENSE](LICENSE) file for details.
+See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for common issues.
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new features
-5. Submit a pull request
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to add new tests.
 
-## Support
+## Related
 
-For issues or questions:
-- Open an issue in this repository
-- Refer to [Playwright documentation](https://playwright.dev/)
-- Check [IDC documentation](https://learn.canceridc.dev/)
+- [IDC Web App source](https://github.com/ImagingDataCommons/IDC-WebApp)
+- [IDC documentation](https://learn.canceridc.dev/)
+- [Playwright documentation](https://playwright.dev/)
+
+## License
+
+Apache License 2.0 — see [LICENSE](LICENSE).

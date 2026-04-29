@@ -1,10 +1,51 @@
-# IDC Web Portal Test Configuration Examples
+# Test Configuration Examples
 
-This document provides examples of how to customize the test configuration in `test-config.json`.
+`test-config.json` controls thresholds, selectors, and optional behavior. The portal URL can also be overridden at runtime with the `PORTAL_URL` environment variable, which takes priority over `testUrl` in the file.
 
-## Basic Configuration
+## Current Defaults
 
-The `test-config.json` file controls all aspects of testing behavior:
+```json
+{
+  "testUrl": "https://portal.imaging.datacommons.cancer.gov/explore/",
+  "pageLoadTimeout": 90000,
+  "tests": {
+    "filterInteraction": {
+      "minFilterCount": 5
+    },
+    "dataTableVerification": {
+      "minRowCount": 5
+    }
+  }
+}
+```
+
+## Tightening Thresholds
+
+After confirming what the portal actually serves, you can raise thresholds to catch larger regressions earlier. The portal currently has ~57 buttons, ~477 links, and ~2300 filter inputs:
+
+```json
+{
+  "tests": {
+    "filterInteraction": {
+      "minFilterCount": 20
+    },
+    "dataTableVerification": {
+      "minRowCount": 10,
+      "tableSelectors": ["table", ".dataTable", "[role='table']"]
+    }
+  }
+}
+```
+
+## Testing Against Staging
+
+Rather than editing `test-config.json`, override the URL at runtime:
+
+```bash
+PORTAL_URL=https://testing-portal.canceridc.dev/explore/ npm test
+```
+
+Or set it permanently in `test-config.json` for local development:
 
 ```json
 {
@@ -13,33 +54,45 @@ The `test-config.json` file controls all aspects of testing behavior:
 }
 ```
 
-## Enabling/Disabling Tests
+Note: the GitHub Actions staging job uses the `PORTAL_URL` **repository variable**, not this file. See [GITHUB-ACTIONS-GUIDE.md](GITHUB-ACTIONS-GUIDE.md).
 
-Each test can be individually enabled or disabled:
+## Adjusting Timeouts
+
+The portal typically loads in 15–30 seconds but can be slower. If you see timeout failures:
+
+```json
+{
+  "pageLoadTimeout": 120000
+}
+```
+
+And increase `test.setTimeout(180000)` in the relevant `beforeAll` to match.
+
+## Customizing Selectors
+
+If the portal's HTML structure changes and selector-based tests start failing, update them here without touching the spec files:
 
 ```json
 {
   "tests": {
     "pageLoad": {
-      "enabled": true,  // Set to false to skip this test
-      "description": "Verify the explore page loads successfully"
-    }
-  }
-}
-```
-
-## Customizing Selectors
-
-You can customize the CSS selectors used to find elements:
-
-```json
-{
-  "tests": {
+      "selectors": {
+        "filterPanel": ".filter-panel, #filters-panel, [data-filters]",
+        "dataTable": ".data-table, table, [role='table']",
+        "navigationMenu": "nav, [role='navigation'], .navbar"
+      }
+    },
     "filterInteraction": {
-      "enabled": true,
       "selectors": {
         "filterButton": "button.filter-btn, .apply-filters-btn",
+        "filterPanel": ".filters, #filters, .filter-panel",
         "resetButton": "button.reset-filters, .clear-filters"
+      }
+    },
+    "cartFunctionality": {
+      "selectors": {
+        "cartIcon": ".cart, #cart, [data-cart]",
+        "addToCart": "button[data-add-to-cart], .add-to-cart"
       }
     }
   }
@@ -48,7 +101,7 @@ You can customize the CSS selectors used to find elements:
 
 ## Network Monitoring
 
-Enable or disable network request tracking:
+Control whether network requests are tracked:
 
 ```json
 {
@@ -60,105 +113,37 @@ Enable or disable network request tracking:
 }
 ```
 
-## Reference Results
+Tracked API call patterns are defined in `referenceResults.expectedAPICalls`.
 
-Define what the tests should look for:
+## Expected Keywords and API Calls
+
+Used by `idc-portal.spec.js` to assert all keywords are present and by `regression.spec.js` to flag if any go missing:
 
 ```json
 {
   "referenceResults": {
     "expectedTitle": "IDC",
     "expectedKeywords": [
-      "imaging",
-      "data",
-      "commons"
-    ]
+      "imaging", "data", "commons", "explore",
+      "portal", "collection", "cohort"
+    ],
+    "expectedAPICalls": ["/api/", "/cohorts/", "/collections/"]
   }
 }
 ```
 
-## Timeout Adjustments
+## Disabling Individual Tests
 
-If the portal loads slowly, increase timeouts:
+Each top-level test in `idc-portal.spec.js` checks `config.tests.<name>.enabled`. To skip a test without deleting it:
 
 ```json
 {
-  "pageLoadTimeout": 120000,  // 2 minutes
   "tests": {
-    "databaseInteraction": {
-      "waitAfterLoad": 10000  // Wait 10 seconds after initial load
+    "cartFunctionality": {
+      "enabled": false
     }
   }
 }
 ```
 
-## Example: Testing a Different Environment
-
-To test a different environment, create a new config file:
-
-**test-config.production.json**
-```json
-{
-  "testUrl": "https://portal.canceridc.dev/explore/",
-  "pageLoadTimeout": 60000,
-  "tests": {
-    "pageLoad": { "enabled": true },
-    "databaseInteraction": { "enabled": true },
-    "filterInteraction": { "enabled": false },
-    "dataTableVerification": { "enabled": true },
-    "cartFunctionality": { "enabled": true }
-  }
-}
-```
-
-Then run tests with: `CONFIG=production npm test`
-
-## Example: Focused Testing
-
-Test only specific features:
-
-```json
-{
-  "tests": {
-    "pageLoad": { "enabled": true },
-    "databaseInteraction": { "enabled": false },
-    "filterInteraction": { "enabled": true },
-    "dataTableVerification": { "enabled": false },
-    "cartFunctionality": { "enabled": false }
-  }
-}
-```
-
-## Example: Comprehensive Testing
-
-Enable all tests with extended timeouts:
-
-```json
-{
-  "testUrl": "https://testing-portal.canceridc.dev/explore/",
-  "pageLoadTimeout": 120000,
-  "tests": {
-    "pageLoad": { 
-      "enabled": true,
-      "selectors": {
-        "filterPanel": ".filter-panel, #filters-panel",
-        "dataTable": ".data-table, table",
-        "navigationMenu": "nav, .navbar"
-      }
-    },
-    "databaseInteraction": { 
-      "enabled": true,
-      "waitForNetworkIdle": true,
-      "waitAfterLoad": 5000
-    },
-    "filterInteraction": { "enabled": true },
-    "dataTableVerification": { "enabled": true },
-    "cartFunctionality": { "enabled": true }
-  },
-  "networkMonitoring": {
-    "enabled": true,
-    "trackAPICalls": true,
-    "captureFailedRequests": true
-  }
-}
-```
+Note: `data-table.spec.js`, `navigation.spec.js`, and `regression.spec.js` do not currently check `enabled` flags — to skip them, use `npx playwright test --ignore-glob "tests/regression.spec.js"`.
