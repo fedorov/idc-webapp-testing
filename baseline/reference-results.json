@@ -1,0 +1,34 @@
+{
+  "timestamp": "2026-04-29T15:50:17.455Z",
+  "url": "https://portal.imaging.datacommons.cancer.gov/explore/",
+  "title": "IDC",
+  "contentLength": 2467698,
+  "elementCounts": {
+    "buttons": 57,
+    "links": 477,
+    "inputs": 2326,
+    "tables": 4,
+    "forms": 1
+  },
+  "foundKeywords": [
+    "imaging",
+    "data",
+    "commons",
+    "explore",
+    "portal",
+    "collection",
+    "cohort"
+  ],
+  "networkRequests": {
+    "total": 0,
+    "failed": 0,
+    "apiCalls": 0
+  },
+  "testResults": {
+    "hasFilterPanel": true,
+    "hasTables": true,
+    "hasCart": true,
+    "hasCohorts": true,
+    "hasCollections": true
+  }
+}

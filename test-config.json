@@ -31,6 +31,7 @@
     "filterInteraction": {
       "enabled": true,
       "description": "Test filter panel interactions",
+      "minFilterCount": 5,
       "selectors": {
         "filterButton": "button.filter-btn, .apply-filters-btn, button[data-filter]",
         "filterPanel": ".filters, #filters, .filter-panel",
@@ -40,7 +41,7 @@
     "dataTableVerification": {
       "enabled": true,
       "description": "Verify data tables load with content",
-      "minRowCount": 0,
+      "minRowCount": 5,
       "tableSelectors": [
         "table",
         ".dataTable",

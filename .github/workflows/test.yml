@@ -1,81 +1,107 @@
 name: IDC Web Portal Testing
 
 on:
-  # Run on push to main branch
   push:
     branches: [ main, master ]
-  
-  # Run on pull requests
   pull_request:
     branches: [ main, master ]
-  
-  # Allow manual trigger
   workflow_dispatch:
-  
-  # Run on a schedule (daily at 2 AM UTC)
+    inputs:
+      portal_url:
+        description: 'Override portal URL (leave empty to use repository variable)'
+        required: false
+        default: ''
+  # Daily staging check at 2 AM UTC; weekly production check on Mondays at 3 AM UTC
   schedule:
-    - cron: '0 2 * * *'
+    - cron: '0 2 * * *'   # daily — tests against PORTAL_URL repository variable (staging)
+    - cron: '0 3 * * 1'   # weekly Monday — tests against production portal
 
 jobs:
   test:
-    name: Test IDC Web Portal
+    name: Test IDC Portal (${{ matrix.environment }})
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       contents: read
-    
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Staging job — runs on every push, PR, manual trigger, and daily schedule
+          - environment: staging
+            portal_url: ${{ vars.PORTAL_URL }}
+            run_condition: ${{ github.event_name != 'schedule' || github.event.schedule == '0 2 * * *' }}
+          # Production job — runs on weekly schedule and manual trigger only
+          - environment: production
+            portal_url: 'https://portal.imaging.datacommons.cancer.gov/explore/'
+            run_condition: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && github.event.schedule == '0 3 * * 1') }}
+
     steps:
+      - name: Check if job should run
+        if: ${{ !fromJSON(matrix.run_condition) }}
+        run: echo "Skipping ${{ matrix.environment }} job for this trigger" && exit 0
+
       - name: Checkout repository
+        if: ${{ fromJSON(matrix.run_condition) }}
         uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
+        if: ${{ fromJSON(matrix.run_condition) }}
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-      
+
       - name: Install dependencies
+        if: ${{ fromJSON(matrix.run_condition) }}
         run: npm ci
-      
+
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
-      
+        if: ${{ fromJSON(matrix.run_condition) }}
+        run: npx playwright install --with-deps chromium firefox
+
       - name: Run tests
+        if: ${{ fromJSON(matrix.run_condition) }}
         run: npm test
         env:
           CI: true
-          PORTAL_URL: ${{ vars.PORTAL_URL }}
-      
+          PORTAL_URL: ${{ matrix.portal_url || inputs.portal_url || vars.PORTAL_URL }}
+
+      - name: Write job summary
+        if: ${{ fromJSON(matrix.run_condition) && always() }}
+        run: |
+          echo "## Test Results — ${{ matrix.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Portal URL:** \`${{ matrix.portal_url || inputs.portal_url || vars.PORTAL_URL }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f test-results/results.json ]; then
+            PASSED=$(node -e "const r=require('./test-results/results.json'); console.log(r.stats?.expected ?? 'n/a')")
+            FAILED=$(node -e "const r=require('./test-results/results.json'); console.log(r.stats?.unexpected ?? 'n/a')")
+            SKIPPED=$(node -e "const r=require('./test-results/results.json'); console.log(r.stats?.skipped ?? 'n/a')")
+            echo "| Status | Count |" >> $GITHUB_STEP_SUMMARY
+            echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| ✅ Passed | $PASSED |" >> $GITHUB_STEP_SUMMARY
+            echo "| ❌ Failed | $FAILED |" >> $GITHUB_STEP_SUMMARY
+            echo "| ⏭️ Skipped | $SKIPPED |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "_test-results/results.json not found — tests may have errored before completion_" >> $GITHUB_STEP_SUMMARY
+          fi
+
       - name: Upload test results
-        if: always()
+        if: ${{ fromJSON(matrix.run_condition) && always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
+          name: test-results-${{ matrix.environment }}
           path: |
             test-results/
             playwright-report/
           retention-days: 30
-      
-      - name: Upload reference screenshots
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: screenshots
-          path: test-results/*.png
-          retention-days: 30
-      
+
       - name: Upload reference results
-        if: always()
+        if: ${{ fromJSON(matrix.run_condition) && always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: reference-results
+          name: reference-results-${{ matrix.environment }}
           path: test-results/reference-results.json
-          retention-days: 30
-      
-      - name: Publish test report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report
-          path: playwright-report/
           retention-days: 30
