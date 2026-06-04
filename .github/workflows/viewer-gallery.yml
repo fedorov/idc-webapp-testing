@@ -50,8 +50,8 @@ jobs:
             --label "Production" \
             --out screenshots/production \
             --concurrency 4 \
-            --wait 60000 \
-            --timeout 120000
+            --wait 120000 \
+            --timeout 180000
 
       # -----------------------------------------------------------------------
       # Run 2 — testing-tier viewer (same URLs, base replaced)
@@ -63,8 +63,8 @@ jobs:
             --out screenshots/testing \
             --viewer-base https://testing-viewer.canceridc.dev \
             --concurrency 4 \
-            --wait 60000 \
-            --timeout 120000
+            --wait 120000 \
+            --timeout 180000
 
       # -----------------------------------------------------------------------
       # Build comparison index page
