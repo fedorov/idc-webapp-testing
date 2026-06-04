@@ -106,12 +106,22 @@ async function runWithConcurrency(items, fn, concurrency) {
 }
 
 // ---------------------------------------------------------------------------
-// Wait for viewer canvas to fill with image content.
+// Wait for viewer canvas to fill with image content (polls every 5 s).
 //
-// Strategy: poll every 5 s, sampling a 5×5 grid of 20×20-pixel blocks across
-// the canvas. If >1% of samples are non-black the image is rendered.
-// Falls back to a fixed timeout for non-imaging pages (RTPLAN, SR) that never
-// produce a canvas, detected by the absence of any canvas after 15 s.
+// Two viewers, two canvas technologies, two readiness signals:
+//
+//   OHIF (/v3/viewer/…)  — cornerstoneJS renders to a 2D canvas.
+//     Loading state : canvas is all-black (spinner is a DOM overlay).
+//     Ready signal  : >1% of sampled pixels are non-black.
+//
+//   SLIM (/slim/…)       — OpenLayers renders to a WebGL canvas.
+//     Loading state : canvas shows a uniform light-gray background.
+//     Ready signal  : >1% of sampled pixels are chromatic
+//                     (max(R,G,B)−min(R,G,B) > 30), indicating slide tiles.
+//     Read method   : gl.readPixels (canvas.getContext('2d') returns null).
+//
+// Non-imaging IODs (RTPLAN, SR) never produce a canvas; after 15 s we give up
+// and screenshot whatever the viewer is showing.
 // ---------------------------------------------------------------------------
 async function waitForViewerReady(page, maxWait) {
   const POLL = 5000;
@@ -122,34 +132,66 @@ async function waitForViewerReady(page, maxWait) {
 
   while (Date.now() < deadline) {
     const { hasCanvas, ready } = await page.evaluate(() => {
-      const canvas = document.querySelector('canvas');
-      if (!canvas || canvas.width < 100 || canvas.height < 100) {
-        return { hasCanvas: false, ready: false };
-      }
+      const isSlim = window.location.href.includes('/slim/');
+
+      // Pick the relevant canvas: WebGL for SLIM, 2D for OHIF
+      const canvases = [...document.querySelectorAll('canvas')]
+        .filter(c => c.width >= 100 && c.height >= 100)
+        .sort((a, b) => b.width * b.height - a.width * a.height);
+
+      if (!canvases.length) return { hasCanvas: false, ready: false };
+
       try {
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return { hasCanvas: true, ready: false };
-        let nonBlack = 0, total = 0;
-        for (let gx = 0; gx < 5; gx++) {
-          for (let gy = 0; gy < 5; gy++) {
-            const x = Math.max(0, Math.floor(canvas.width  * (gx + 0.5) / 5) - 10);
-            const y = Math.max(0, Math.floor(canvas.height * (gy + 0.5) / 5) - 10);
-            const d = ctx.getImageData(x, y, 20, 20).data;
-            for (let i = 0; i < d.length; i += 4) {
-              total++;
-              if (d[i] > 8 || d[i + 1] > 8 || d[i + 2] > 8) nonBlack++;
+        if (isSlim) {
+          // --- SLIM: WebGL canvas, chromatic-pixel check ---
+          const canvas = canvases.find(c => {
+            const gl = c.getContext('webgl') || c.getContext('webgl2');
+            return !!gl;
+          });
+          if (!canvas) return { hasCanvas: false, ready: false };
+          const gl = canvas.getContext('webgl') || canvas.getContext('webgl2');
+          const B = 20; // block size
+          let chromatic = 0, total = 0;
+          for (let gx = 0; gx < 5; gx++) {
+            for (let gy = 0; gy < 5; gy++) {
+              const x  = Math.max(0, Math.floor(canvas.width  * (gx + 0.5) / 5) - B / 2);
+              const y  = Math.max(0, Math.floor(canvas.height * (gy + 0.5) / 5) - B / 2);
+              const gy_gl = Math.max(0, canvas.height - y - B); // WebGL Y is flipped
+              const px = new Uint8Array(B * B * 4);
+              gl.readPixels(x, gy_gl, B, B, gl.RGBA, gl.UNSIGNED_BYTE, px);
+              for (let i = 0; i < px.length; i += 4) {
+                total++;
+                if (Math.max(px[i], px[i+1], px[i+2]) - Math.min(px[i], px[i+1], px[i+2]) > 30) chromatic++;
+              }
             }
           }
+          return { hasCanvas: true, ready: chromatic / total > 0.01 };
+        } else {
+          // --- OHIF: 2D canvas, non-black-pixel check ---
+          const canvas = canvases.find(c => !!c.getContext('2d'));
+          if (!canvas) return { hasCanvas: false, ready: false };
+          const ctx = canvas.getContext('2d');
+          let nonBlack = 0, total = 0;
+          for (let gx = 0; gx < 5; gx++) {
+            for (let gy = 0; gy < 5; gy++) {
+              const x = Math.max(0, Math.floor(canvas.width  * (gx + 0.5) / 5) - 10);
+              const y = Math.max(0, Math.floor(canvas.height * (gy + 0.5) / 5) - 10);
+              const d = ctx.getImageData(x, y, 20, 20).data;
+              for (let i = 0; i < d.length; i += 4) {
+                total++;
+                if (d[i] > 8 || d[i+1] > 8 || d[i+2] > 8) nonBlack++;
+              }
+            }
+          }
+          return { hasCanvas: true, ready: nonBlack / total > 0.01 };
         }
-        return { hasCanvas: true, ready: nonBlack / total > 0.01 };
       } catch {
-        return { hasCanvas: true, ready: true }; // tainted canvas → assume ready
+        return { hasCanvas: true, ready: true }; // any error → assume ready
       }
     }).catch(() => ({ hasCanvas: false, ready: false }));
 
     if (ready) return;
     if (hasCanvas) sawCanvas = true;
-    // Non-imaging IOD (RTPLAN, SR, …): no canvas ever appears — give up after 15 s
     if (!sawCanvas && Date.now() - start > NO_CANVAS_GIVE_UP) return;
 
     const remaining = deadline - Date.now();

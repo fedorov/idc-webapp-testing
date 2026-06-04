@@ -84,7 +84,7 @@ function parseArgs(argv) {
 
 // ---------------------------------------------------------------------------
 // Wait for viewer canvas to fill with image content (polls every 5 s).
-// See viewer-gallery.js for the detection rationale.
+// See viewer-gallery.js for full rationale and per-viewer strategy.
 // ---------------------------------------------------------------------------
 async function waitForViewerReady(page, maxWait) {
   const POLL = 5000;
@@ -95,26 +95,50 @@ async function waitForViewerReady(page, maxWait) {
 
   while (Date.now() < deadline) {
     const { hasCanvas, ready } = await page.evaluate(() => {
-      const canvas = document.querySelector('canvas');
-      if (!canvas || canvas.width < 100 || canvas.height < 100) {
-        return { hasCanvas: false, ready: false };
-      }
+      const isSlim = window.location.href.includes('/slim/');
+      const canvases = [...document.querySelectorAll('canvas')]
+        .filter(c => c.width >= 100 && c.height >= 100)
+        .sort((a, b) => b.width * b.height - a.width * a.height);
+      if (!canvases.length) return { hasCanvas: false, ready: false };
       try {
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return { hasCanvas: true, ready: false };
-        let nonBlack = 0, total = 0;
-        for (let gx = 0; gx < 5; gx++) {
-          for (let gy = 0; gy < 5; gy++) {
-            const x = Math.max(0, Math.floor(canvas.width  * (gx + 0.5) / 5) - 10);
-            const y = Math.max(0, Math.floor(canvas.height * (gy + 0.5) / 5) - 10);
-            const d = ctx.getImageData(x, y, 20, 20).data;
-            for (let i = 0; i < d.length; i += 4) {
-              total++;
-              if (d[i] > 8 || d[i + 1] > 8 || d[i + 2] > 8) nonBlack++;
+        if (isSlim) {
+          const canvas = canvases.find(c => !!(c.getContext('webgl') || c.getContext('webgl2')));
+          if (!canvas) return { hasCanvas: false, ready: false };
+          const gl = canvas.getContext('webgl') || canvas.getContext('webgl2');
+          const B = 20;
+          let chromatic = 0, total = 0;
+          for (let gx = 0; gx < 5; gx++) {
+            for (let gy = 0; gy < 5; gy++) {
+              const x   = Math.max(0, Math.floor(canvas.width  * (gx + 0.5) / 5) - B / 2);
+              const y   = Math.max(0, Math.floor(canvas.height * (gy + 0.5) / 5) - B / 2);
+              const gygl = Math.max(0, canvas.height - y - B);
+              const px  = new Uint8Array(B * B * 4);
+              gl.readPixels(x, gygl, B, B, gl.RGBA, gl.UNSIGNED_BYTE, px);
+              for (let i = 0; i < px.length; i += 4) {
+                total++;
+                if (Math.max(px[i], px[i+1], px[i+2]) - Math.min(px[i], px[i+1], px[i+2]) > 30) chromatic++;
+              }
             }
           }
+          return { hasCanvas: true, ready: chromatic / total > 0.01 };
+        } else {
+          const canvas = canvases.find(c => !!c.getContext('2d'));
+          if (!canvas) return { hasCanvas: false, ready: false };
+          const ctx = canvas.getContext('2d');
+          let nonBlack = 0, total = 0;
+          for (let gx = 0; gx < 5; gx++) {
+            for (let gy = 0; gy < 5; gy++) {
+              const x = Math.max(0, Math.floor(canvas.width  * (gx + 0.5) / 5) - 10);
+              const y = Math.max(0, Math.floor(canvas.height * (gy + 0.5) / 5) - 10);
+              const d = ctx.getImageData(x, y, 20, 20).data;
+              for (let i = 0; i < d.length; i += 4) {
+                total++;
+                if (d[i] > 8 || d[i+1] > 8 || d[i+2] > 8) nonBlack++;
+              }
+            }
+          }
+          return { hasCanvas: true, ready: nonBlack / total > 0.01 };
         }
-        return { hasCanvas: true, ready: nonBlack / total > 0.01 };
       } catch {
         return { hasCanvas: true, ready: true };
       }
