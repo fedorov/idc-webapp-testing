@@ -3,11 +3,13 @@
   "version": "1.0.0",
   "description": "Automated testing for NCI Imaging Data Commons web portal",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "test": "playwright test",
     "test:headed": "playwright test --headed",
     "test:debug": "playwright test --debug",
-    "report": "playwright show-report"
+    "report": "playwright show-report",
+    "screenshot": "node scripts/viewer-screenshot.js"
   },
   "keywords": [
     "testing",
