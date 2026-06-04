@@ -108,7 +108,7 @@ https://viewer.imaging.datacommons.cancer.gov/slim/studies/{StudyInstanceUID}/se
 
 | # | Type | Collection | Modality | Transfer Syntax | Instances | Size (MB) | Notes | Viewer |
 |---|---|---|---|---|---|---|---|---|
-| P7 | Bulk annotation (ANN) | `tcga_skcm` | ANN | EVR-LE | 1 | 1,656 | Microscopy Bulk Simple Annotations — polygon/point overlays on WSI | [View](https://viewer.imaging.datacommons.cancer.gov/slim/studies/2.25.287052099773778925949014970866689239965/series/1.2.826.0.1.3680043.10.511.3.10308617855099676010855440070504350) |
+| P7 | Bulk annotation (ANN) | `tcga_luad` | ANN | EVR-LE | 1 | 0.88 | 3,567 nucleus polygon annotations on FFPE H&E lung adenocarcinoma WSI; references FFPE DX1 SM series in same study — tests ANN overlay rendering | [View](https://viewer.imaging.datacommons.cancer.gov/slim/studies/2.25.138144370654209238925841881456148313713/series/1.2.826.0.1.3680043.10.511.3.75660021534863062578402046199665898) |
 | P8 | Segmentation mask (SEG) | `rms_mutation_prediction` | SEG | JPEG-LS Lossless | 2 | 2.2 | Segmentation referencing WSI in same study; tests JPEG-LS decoder + mask overlay | [View](https://viewer.imaging.datacommons.cancer.gov/slim/studies/2.25.20081751499427705056270169210442801676/series/1.2.826.0.1.3680043.10.511.3.25300727088905197494868158262574278) |
 | P9 | Microscopy Presentation State (PR) | `htan_hms` | PR | EVR-LE | 3 | 0.22 | Same study as P5 fluorescence WSI — stored display parameters for slide viewing | [View](https://viewer.imaging.datacommons.cancer.gov/slim/studies/2.25.219049900737444567890964056686598614067/series/1.2.826.0.1.3680043.10.511.3.51337276380398375498224774549772923) |
 
