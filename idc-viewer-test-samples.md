@@ -77,7 +77,7 @@ R22 and R23 share a study with a source image series to test cross-series overla
 
 | # | Type | Collection | Modality | Transfer Syntax | Instances | Size (MB) | Notes | Viewer |
 |---|---|---|---|---|---|---|---|---|
-| R22 | Segmentation (MR-based) | `acrin_6698` | SEG | EVR-LE | 1 | 5.3 | Same study as R5 MR — tests SEG overlay on source | [View](https://viewer.imaging.datacommons.cancer.gov/v3/viewer/?StudyInstanceUIDs=1.3.6.1.4.1.14519.5.2.1.7695.4164.181609193230590889657798213902&initialSeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.7695.4164.136727379647021331369008708862) |
+| R22 | Segmentation (MR-based) | `qin_prostate_repeatability` | SEG | EVR-LE | 1 | 4.0 | T2 axial prostate SEG; same study also contains T2, DWI, DCE, ADC MR series — tests SEG overlay on source | [View](https://viewer.imaging.datacommons.cancer.gov/v3/viewer/?StudyInstanceUIDs=1.3.6.1.4.1.14519.5.2.1.3671.4754.318227959935022390930294557376&initialSeriesInstanceUID=1.2.276.0.7230010.3.1.3.1426846371.7872.1513205171.131) |
 | R23 | RT Structure Set | `4d_lung` | RTSTRUCT | IVR-LE | 1 | 2.1 | Same study as R3 CT — tests ROI contour rendering | [View](https://viewer.imaging.datacommons.cancer.gov/v3/viewer/?StudyInstanceUIDs=1.3.6.1.4.1.14519.5.2.1.6834.5010.465205689126985052184293614571&initialSeriesInstanceUID=2.25.5618076857306634880164728989441809423.1) |
 | R24 | RT Dose | `pancreatic_ct_cbct_seg` | RTDOSE | IVR-LE | 1 | 97 | Large dose grid — tests dose colorwash rendering | [View](https://viewer.imaging.datacommons.cancer.gov/v3/viewer/?StudyInstanceUIDs=1.3.6.1.4.1.14519.5.2.1.21087345762211724523378497892240459677&initialSeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.245223985966061426102494958781347594184) |
 | R25 | RT Plan | `vestibular_schwannoma_seg` | RTPLAN | IVR-LE | 1 | 0.02 | Beam geometry; not directly visualizable but must not crash | [View](https://viewer.imaging.datacommons.cancer.gov/v3/viewer/?StudyInstanceUIDs=1.3.6.1.4.1.14519.5.2.1.267424821384663813780850856506829388886&initialSeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.151251643407469240433833224247202025725) |
@@ -129,5 +129,5 @@ https://viewer.imaging.datacommons.cancer.gov/slim/studies/{StudyInstanceUID}/se
 | Temporal / 4D | 4D gated CT (`4d_lung`), DCE-MRI (`tcga_brca`) |
 | Illumination (pathology) | Brightfield, Epifluorescence |
 | Staining (pathology) | H&E, May-Grünwald Giemsa, single-marker IHC, 30-plex fluorescence panel |
-| Linked series | SEG + source MR same study (R22/R5), RTSTRUCT + source CT same study (R23/R3), Microscopy PR + source WSI same study (P9/P5) |
+| Linked series | SEG + source MR series same study (R22/`qin_prostate_repeatability`), RTSTRUCT + source CT same study (R23/R3), Microscopy PR + source WSI same study (P9/P5) |
 | Encoding anomaly | Mixed TS within series (P3/cmb_crc, P1/rms_mutation_prediction) |
