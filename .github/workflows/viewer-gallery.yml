@@ -1,0 +1,109 @@
+name: IDC Viewer Screenshot Gallery
+
+on:
+  schedule:
+    - cron: '0 5 * * 0'   # weekly, Sunday 5 AM UTC
+  workflow_dispatch:       # manual trigger
+
+# Only one Pages deploy can run at a time
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  gallery:
+    name: Capture screenshots and publish comparison gallery
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright (Chromium only)
+        run: npx playwright install --with-deps chromium
+
+      # -----------------------------------------------------------------------
+      # Run 1 — production viewer (URLs from the inventory as-is)
+      # -----------------------------------------------------------------------
+      - name: Capture screenshots — Production viewer
+        run: |
+          node scripts/viewer-gallery.js \
+            --label "Production" \
+            --out screenshots/production \
+            --concurrency 4 \
+            --wait 10000 \
+            --timeout 120000
+
+      # -----------------------------------------------------------------------
+      # Run 2 — testing-tier viewer (same URLs, base replaced)
+      # -----------------------------------------------------------------------
+      - name: Capture screenshots — Testing tier
+        run: |
+          node scripts/viewer-gallery.js \
+            --label "Testing" \
+            --out screenshots/testing \
+            --viewer-base https://testing-viewer.canceridc.dev \
+            --concurrency 4 \
+            --wait 10000 \
+            --timeout 120000
+
+      # -----------------------------------------------------------------------
+      # Build comparison index page
+      # -----------------------------------------------------------------------
+      - name: Build comparison page
+        run: |
+          node scripts/build-comparison.js \
+            screenshots/production \
+            screenshots/testing \
+            screenshots/
+
+      # -----------------------------------------------------------------------
+      # Deploy screenshots/ to GitHub Pages
+      # -----------------------------------------------------------------------
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload gallery as Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: screenshots/
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
+
+      # -----------------------------------------------------------------------
+      # Write job summary (after deploy so page_url is available)
+      # -----------------------------------------------------------------------
+      - name: Write job summary
+        if: always()
+        run: |
+          PROD_PASS=$(node -e "const r=JSON.parse(require('fs').readFileSync('screenshots/production/results.json','utf8')); console.log(r.results.filter(x=>x.ok).length+'/'+r.results.length)" 2>/dev/null || echo '?/?')
+          TEST_PASS=$(node -e "const r=JSON.parse(require('fs').readFileSync('screenshots/testing/results.json','utf8'));  console.log(r.results.filter(x=>x.ok).length+'/'+r.results.length)" 2>/dev/null || echo '?/?')
+          echo "## Viewer Gallery" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Production | $PROD_PASS screenshots OK |" >> $GITHUB_STEP_SUMMARY
+          echo "| Testing    | $TEST_PASS screenshots OK |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Gallery URL:** ${{ steps.deploy.outputs.page_url }}" >> $GITHUB_STEP_SUMMARY

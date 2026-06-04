@@ -9,7 +9,9 @@
     "test:headed": "playwright test --headed",
     "test:debug": "playwright test --debug",
     "report": "playwright show-report",
-    "screenshot": "node scripts/viewer-screenshot.js"
+    "screenshot": "node scripts/viewer-screenshot.js",
+    "gallery": "node scripts/viewer-gallery.js",
+    "gallery:compare": "node scripts/build-comparison.js screenshots/production screenshots/testing screenshots/"
   },
   "keywords": [
     "testing",
