@@ -102,7 +102,7 @@ https://viewer.imaging.datacommons.cancer.gov/slim/studies/{StudyInstanceUID}/se
 | P3 | WSI — medium, H&E, mixed JPEG | `cmb_crc` | EVR-LE + JPEG Baseline (mixed) | 7 | 2,999 | 109,559 × 81,897 | H&E | Brightfield | Mixed TS within series — pathological decoder edge case | [View](https://viewer.imaging.datacommons.cancer.gov/slim/studies/2.25.92466204536656775610944344725709812714/series/1.3.6.1.4.1.5962.99.1.1272448538.1906062344.1714964432410.4.0) |
 | P4 | WSI — small, H&E, JPEG2000 Lossy | `tcga_stad` | JPEG 2000 Lossy | 1 | 0.5 | 1,600 × 1,200 | H&E | Brightfield | Single pyramid level only — tests graceful no-zoom case; lossy J2K path | [View](https://viewer.imaging.datacommons.cancer.gov/slim/studies/2.25.295549540896097797429979821304955099100/series/1.3.6.1.4.1.5962.99.1.2903309705.934477561.1639285882249.2.0) |
 | P5 | WSI — fluorescence, 30-plex panel | `htan_hms` | EVR-LE | 216 | 67,120 | 24,920 × 26,094 | Multi-antibody (CD3, CD8, PD-1, Ki-67, …) | Epifluorescence | 30+ channels — tests channel selector, per-channel color assignment | [View](https://viewer.imaging.datacommons.cancer.gov/slim/studies/2.25.219049900737444567890964056686598614067/series/1.3.6.1.4.1.5962.99.1.2343322182.1764456793.1655905763910.4.0) |
-| P6 | WSI — multiplexed IHC, largest in IDC | `htan_ohsu` | EVR-LE | — | 150,143 | 44,553 × 22,224 | Anti-CD20, CD3, CD4, CD45, Ki-67, Vimentin… | Brightfield (CODEX) | ~150 GB — extreme memory and streaming test | [View](https://viewer.imaging.datacommons.cancer.gov/slim/studies/2.25.56219147941526607962658668060030231728/series/1.3.6.1.4.1.5962.99.1.2004658766.495663154.1655567100494.4.0) |
+| P6 | WSI — multiplexed fluorescence, SARDANA | `htan_tnp_sardana` | J2K Lossless | 240 | 43,059 | 26,139 × 27,120 | Multi-antibody (Alpha-SMA, …) | Epifluorescence | ~40-channel fluorescence panel (240 instances ÷ 6 pyramid levels); same study also contains H&E WSI and PR — tests channel selector, per-channel color assignment | [View](https://viewer.imaging.datacommons.cancer.gov/slim/studies/2.25.112849421593762410108114587383519700602/series/1.3.6.1.4.1.5962.99.1.331207435.2054329796.1752677896971.4.0) |
 
 ### Pathology image-derived objects
 
@@ -122,11 +122,11 @@ https://viewer.imaging.datacommons.cancer.gov/slim/studies/{StudyInstanceUID}/se
 | Modality | CT, MR, PT, CR, DX, MG, US, NM, XA, SM — 10 of 24 modalities in IDC |
 | Image-derived type | SEG, RTSTRUCT, RTDOSE, RTPLAN, SR, REG, PR, RWV, M3D, ANN |
 | Transfer syntax | IVR-LE, EVR-LE, EVR-BE (retired), JPEG Baseline, JPEG Lossless FOP, JPEG-LS Lossless, J2K Lossless, J2K Lossy, Mixed-within-series |
-| Series size | 1 instance → 2,864 instances (radiology); 1 tile → 216 instances (pathology) |
-| File size | 0.006 MB (SR) → 150,143 MB (fluorescence WSI) |
+| Series size | 1 instance → 2,864 instances (radiology); 1 tile → 240 instances (pathology) |
+| File size | 0.006 MB (SR) → 67,120 MB (fluorescence WSI) |
 | WSI pixel matrix | 1,600 × 1,200 → 189,184 × 448,768 px |
 | Temporal / 4D | 4D gated CT (`4d_lung`), DCE-MRI (`tcga_brca`) |
 | Illumination (pathology) | Brightfield, Epifluorescence |
-| Staining (pathology) | H&E, May-Grünwald Giemsa, single-marker IHC, 30-plex fluorescence panel |
+| Staining (pathology) | H&E, May-Grünwald Giemsa, 30-plex fluorescence panel (`htan_hms`), ~40-plex fluorescence panel (`htan_tnp_sardana`) |
 | Linked series | SEG + source MR series same study (R22/`qin_prostate_repeatability`), RTSTRUCT + source CT same study (R23/R3), Microscopy PR + source WSI same study (P9/P5) |
 | Encoding anomaly | Mixed TS within series (P3/cmb_crc, P1/rms_mutation_prediction) |
