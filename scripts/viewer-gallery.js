@@ -106,6 +106,33 @@ async function runWithConcurrency(items, fn, concurrency) {
 }
 
 // ---------------------------------------------------------------------------
+// Network-idle tracker — must be attached before page.goto().
+// Returns a getter for the current in-flight request count.
+// ---------------------------------------------------------------------------
+function attachNetworkTracker(page) {
+  let active = 0;
+  page.on('request',         () => { active++; });
+  page.on('requestfinished', () => { if (active > 0) active--; });
+  page.on('requestfailed',   () => { if (active > 0) active--; });
+  return () => active;
+}
+
+// Poll until no in-flight requests for `idleFor` ms, or until `timeout` elapses.
+async function waitForNetworkSettled(getActive, timeout = 30000, idleFor = 2000) {
+  const deadline = Date.now() + timeout;
+  let idleSince = null;
+  while (Date.now() < deadline) {
+    if (getActive() === 0) {
+      if (idleSince === null) idleSince = Date.now();
+      if (Date.now() - idleSince >= idleFor) return;
+    } else {
+      idleSince = null;
+    }
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Wait for viewer canvas to fill with image content (polls every 5 s).
 //
 // Two viewers, two canvas technologies, two readiness signals:
@@ -244,16 +271,17 @@ async function screenshotOne(browser, { id, url }, opts) {
 
   const page = await browser.newPage();
   try {
+    const getActive = attachNetworkTracker(page);   // must be before goto
     process.stdout.write(`  [${id}] navigating…\n`);
     await page.goto(effectiveUrl, { waitUntil: 'domcontentloaded', timeout: opts.timeout });
-    await page.waitForLoadState('networkidle', { timeout: opts.timeout }).catch(() => {
-      process.stdout.write(`  [${id}] networkidle timed out — proceeding\n`);
-    });
     await waitForViewerReady(page, opts.wait);
+    process.stdout.write(`  [${id}] canvas ready — waiting for network to settle…\n`);
+    await waitForNetworkSettled(getActive, Math.min(opts.wait, 30000));
     if (zoomSteps > 0) {
       process.stdout.write(`  [${id}] zooming in (${zoomSteps} steps)…\n`);
       await zoomViewer(page, zoomSteps);
       await waitForViewerReady(page, Math.min(opts.wait, 60000));
+      await waitForNetworkSettled(getActive, 15000);
     }
     await page.screenshot({ path: imgFile, fullPage: false });
     process.stdout.write(`  [${id}] saved ${id}.png\n`);
@@ -322,7 +350,7 @@ export function generateGalleryHtml(tests, results, label, generatedAt) {
 <div class="page-wrap">
   <header>
     <h1>IDC Viewer Gallery — ${escHtml(label)}</h1>
-    <div class="meta">Generated: ${escHtml(generatedAt)} · Source: idc-viewer-test-samples.md</div>
+    <div class="meta">Generated: ${escHtml(generatedAt)} · <a href="https://github.com/fedorov/idc-webapp-testing" target="_blank" rel="noopener">GitHub ↗</a></div>
     <div class="summary">
       <span class="pill tot">${results.length} total</span>
       <span class="pill ok">✓ ${passed} passed</span>
@@ -386,6 +414,8 @@ export function sharedStyles() {
                text-decoration:none;border:1px solid var(--accent);padding:3px 10px;
                border-radius:4px;align-self:flex-start;transition:background .15s,color .15s;}
     .view-link:hover{background:var(--accent);color:#000;}
+    .meta a{color:var(--accent);text-decoration:none;}
+    .meta a:hover{text-decoration:underline;}
     @media(max-width:600px){.grid{grid-template-columns:1fr;}}
   </style>`;
 }
