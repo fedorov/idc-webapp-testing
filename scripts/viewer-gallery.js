@@ -73,7 +73,7 @@ function parseArgs(argv) {
     label: 'Production',
     viewerBase: null,
     concurrency: 4,
-    wait: 10000,
+    wait: 60000,
     timeout: 120000,
     headed: false,
   };
@@ -106,6 +106,59 @@ async function runWithConcurrency(items, fn, concurrency) {
 }
 
 // ---------------------------------------------------------------------------
+// Wait for viewer canvas to fill with image content.
+//
+// Strategy: poll every 5 s, sampling a 5×5 grid of 20×20-pixel blocks across
+// the canvas. If >1% of samples are non-black the image is rendered.
+// Falls back to a fixed timeout for non-imaging pages (RTPLAN, SR) that never
+// produce a canvas, detected by the absence of any canvas after 15 s.
+// ---------------------------------------------------------------------------
+async function waitForViewerReady(page, maxWait) {
+  const POLL = 5000;
+  const NO_CANVAS_GIVE_UP = 15000;
+  const deadline = Date.now() + maxWait;
+  const start = Date.now();
+  let sawCanvas = false;
+
+  while (Date.now() < deadline) {
+    const { hasCanvas, ready } = await page.evaluate(() => {
+      const canvas = document.querySelector('canvas');
+      if (!canvas || canvas.width < 100 || canvas.height < 100) {
+        return { hasCanvas: false, ready: false };
+      }
+      try {
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return { hasCanvas: true, ready: false };
+        let nonBlack = 0, total = 0;
+        for (let gx = 0; gx < 5; gx++) {
+          for (let gy = 0; gy < 5; gy++) {
+            const x = Math.max(0, Math.floor(canvas.width  * (gx + 0.5) / 5) - 10);
+            const y = Math.max(0, Math.floor(canvas.height * (gy + 0.5) / 5) - 10);
+            const d = ctx.getImageData(x, y, 20, 20).data;
+            for (let i = 0; i < d.length; i += 4) {
+              total++;
+              if (d[i] > 8 || d[i + 1] > 8 || d[i + 2] > 8) nonBlack++;
+            }
+          }
+        }
+        return { hasCanvas: true, ready: nonBlack / total > 0.01 };
+      } catch {
+        return { hasCanvas: true, ready: true }; // tainted canvas → assume ready
+      }
+    }).catch(() => ({ hasCanvas: false, ready: false }));
+
+    if (ready) return;
+    if (hasCanvas) sawCanvas = true;
+    // Non-imaging IOD (RTPLAN, SR, …): no canvas ever appears — give up after 15 s
+    if (!sawCanvas && Date.now() - start > NO_CANVAS_GIVE_UP) return;
+
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) return;
+    await page.waitForTimeout(Math.min(POLL, remaining));
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Screenshot one test
 // ---------------------------------------------------------------------------
 async function screenshotOne(browser, { id, url }, opts) {
@@ -121,7 +174,7 @@ async function screenshotOne(browser, { id, url }, opts) {
     await page.waitForLoadState('networkidle', { timeout: opts.timeout }).catch(() => {
       process.stdout.write(`  [${id}] networkidle timed out — proceeding\n`);
     });
-    if (opts.wait > 0) await page.waitForTimeout(opts.wait);
+    await waitForViewerReady(page, opts.wait);
     await page.screenshot({ path: imgFile, fullPage: false });
     process.stdout.write(`  [${id}] saved ${id}.png\n`);
     return { id, ok: true, url: effectiveUrl };

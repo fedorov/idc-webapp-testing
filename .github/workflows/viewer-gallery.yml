@@ -50,7 +50,7 @@ jobs:
             --label "Production" \
             --out screenshots/production \
             --concurrency 4 \
-            --wait 10000 \
+            --wait 60000 \
             --timeout 120000
 
       # -----------------------------------------------------------------------
@@ -63,7 +63,7 @@ jobs:
             --out screenshots/testing \
             --viewer-base https://testing-viewer.canceridc.dev \
             --concurrency 4 \
-            --wait 10000 \
+            --wait 60000 \
             --timeout 120000
 
       # -----------------------------------------------------------------------

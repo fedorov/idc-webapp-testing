@@ -59,7 +59,7 @@ function parseArgs(argv) {
   const opts = {
     testId: null,
     headed: false,
-    wait: 10000,
+    wait: 60000,
     out: path.join(REPO_ROOT, 'screenshots'),
     timeout: 120000,
   };
@@ -80,6 +80,54 @@ function parseArgs(argv) {
   }
 
   return opts;
+}
+
+// ---------------------------------------------------------------------------
+// Wait for viewer canvas to fill with image content (polls every 5 s).
+// See viewer-gallery.js for the detection rationale.
+// ---------------------------------------------------------------------------
+async function waitForViewerReady(page, maxWait) {
+  const POLL = 5000;
+  const NO_CANVAS_GIVE_UP = 15000;
+  const deadline = Date.now() + maxWait;
+  const start = Date.now();
+  let sawCanvas = false;
+
+  while (Date.now() < deadline) {
+    const { hasCanvas, ready } = await page.evaluate(() => {
+      const canvas = document.querySelector('canvas');
+      if (!canvas || canvas.width < 100 || canvas.height < 100) {
+        return { hasCanvas: false, ready: false };
+      }
+      try {
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return { hasCanvas: true, ready: false };
+        let nonBlack = 0, total = 0;
+        for (let gx = 0; gx < 5; gx++) {
+          for (let gy = 0; gy < 5; gy++) {
+            const x = Math.max(0, Math.floor(canvas.width  * (gx + 0.5) / 5) - 10);
+            const y = Math.max(0, Math.floor(canvas.height * (gy + 0.5) / 5) - 10);
+            const d = ctx.getImageData(x, y, 20, 20).data;
+            for (let i = 0; i < d.length; i += 4) {
+              total++;
+              if (d[i] > 8 || d[i + 1] > 8 || d[i + 2] > 8) nonBlack++;
+            }
+          }
+        }
+        return { hasCanvas: true, ready: nonBlack / total > 0.01 };
+      } catch {
+        return { hasCanvas: true, ready: true };
+      }
+    }).catch(() => ({ hasCanvas: false, ready: false }));
+
+    if (ready) return;
+    if (hasCanvas) sawCanvas = true;
+    if (!sawCanvas && Date.now() - start > NO_CANVAS_GIVE_UP) return;
+
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) return;
+    await page.waitForTimeout(Math.min(POLL, remaining));
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -123,10 +171,8 @@ async function main() {
       console.warn(`[${opts.testId}] networkidle timed out — proceeding anyway`);
     });
 
-    if (opts.wait > 0) {
-      console.log(`[${opts.testId}] Extra wait ${opts.wait} ms for viewer rendering…`);
-      await page.waitForTimeout(opts.wait);
-    }
+    console.log(`[${opts.testId}] Waiting for viewer to render (up to ${opts.wait} ms)…`);
+    await waitForViewerReady(page, opts.wait);
 
     await page.screenshot({ path: outFile, fullPage: false });
     console.log(`[${opts.testId}] Screenshot saved: ${outFile}`);
