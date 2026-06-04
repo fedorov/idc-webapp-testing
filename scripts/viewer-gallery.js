@@ -201,13 +201,46 @@ async function waitForViewerReady(page, maxWait) {
 }
 
 // ---------------------------------------------------------------------------
+// Zoom into the viewer by dispatching wheel scroll events on the main canvas.
+// Used for tests that carry a ?_zoom=N URL parameter.
+// ---------------------------------------------------------------------------
+async function zoomViewer(page, steps) {
+  for (let i = 0; i < steps; i++) {
+    await page.evaluate(() => {
+      const canvases = [...document.querySelectorAll('canvas')]
+        .filter(c => c.width >= 100 && c.height >= 100)
+        .sort((a, b) => b.width * b.height - a.width * a.height);
+      const canvas = canvases.find(c => c.getContext('webgl') || c.getContext('webgl2'))
+                  || canvases.find(c => !!c.getContext('2d'));
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      canvas.dispatchEvent(new WheelEvent('wheel', {
+        bubbles: true, cancelable: true,
+        clientX: rect.left + rect.width / 2,
+        clientY: rect.top + rect.height / 2,
+        deltaY: -500, deltaMode: 0,
+      }));
+    });
+    await page.waitForTimeout(800);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Screenshot one test
 // ---------------------------------------------------------------------------
 async function screenshotOne(browser, { id, url }, opts) {
   const imgFile = path.join(opts.out, `${id}.png`);
+
+  // Strip _zoom param before navigation; SLIM/OHIF ignore unknown params but
+  // we handle it explicitly so the screenshots link to clean viewer URLs.
+  const parsedUrl = new URL(url);
+  const zoomSteps = parseInt(parsedUrl.searchParams.get('_zoom') || '0', 10);
+  parsedUrl.searchParams.delete('_zoom');
+  const cleanUrl = parsedUrl.toString();
+
   const effectiveUrl = opts.viewerBase
-    ? url.replace(PRODUCTION_BASE, opts.viewerBase)
-    : url;
+    ? cleanUrl.replace(PRODUCTION_BASE, opts.viewerBase)
+    : cleanUrl;
 
   const page = await browser.newPage();
   try {
@@ -217,6 +250,11 @@ async function screenshotOne(browser, { id, url }, opts) {
       process.stdout.write(`  [${id}] networkidle timed out — proceeding\n`);
     });
     await waitForViewerReady(page, opts.wait);
+    if (zoomSteps > 0) {
+      process.stdout.write(`  [${id}] zooming in (${zoomSteps} steps)…\n`);
+      await zoomViewer(page, zoomSteps);
+      await waitForViewerReady(page, Math.min(opts.wait, 60000));
+    }
     await page.screenshot({ path: imgFile, fullPage: false });
     process.stdout.write(`  [${id}] saved ${id}.png\n`);
     return { id, ok: true, url: effectiveUrl };

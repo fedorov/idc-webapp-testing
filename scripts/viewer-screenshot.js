@@ -155,6 +155,31 @@ async function waitForViewerReady(page, maxWait) {
 }
 
 // ---------------------------------------------------------------------------
+// Zoom into the viewer by dispatching wheel scroll events on the main canvas.
+// Used for tests that carry a ?_zoom=N URL parameter.
+// ---------------------------------------------------------------------------
+async function zoomViewer(page, steps) {
+  for (let i = 0; i < steps; i++) {
+    await page.evaluate(() => {
+      const canvases = [...document.querySelectorAll('canvas')]
+        .filter(c => c.width >= 100 && c.height >= 100)
+        .sort((a, b) => b.width * b.height - a.width * a.height);
+      const canvas = canvases.find(c => c.getContext('webgl') || c.getContext('webgl2'))
+                  || canvases.find(c => !!c.getContext('2d'));
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      canvas.dispatchEvent(new WheelEvent('wheel', {
+        bubbles: true, cancelable: true,
+        clientX: rect.left + rect.width / 2,
+        clientY: rect.top + rect.height / 2,
+        deltaY: -500, deltaMode: 0,
+      }));
+    });
+    await page.waitForTimeout(800);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 async function main() {
@@ -174,8 +199,13 @@ async function main() {
     process.exit(1);
   }
 
-  const url = tests[opts.testId];
-  console.log(`[${opts.testId}] URL: ${url}`);
+  const rawUrl = tests[opts.testId];
+  const parsedUrl = new URL(rawUrl);
+  const zoomSteps = parseInt(parsedUrl.searchParams.get('_zoom') || '0', 10);
+  parsedUrl.searchParams.delete('_zoom');
+  const url = parsedUrl.toString();
+
+  console.log(`[${opts.testId}] URL: ${url}${zoomSteps > 0 ? ` (zoom ${zoomSteps} steps)` : ''}`);
 
   fs.mkdirSync(opts.out, { recursive: true });
   const outFile = path.join(opts.out, `${opts.testId}.png`);
@@ -197,6 +227,13 @@ async function main() {
 
     console.log(`[${opts.testId}] Waiting for viewer to render (up to ${opts.wait} ms)…`);
     await waitForViewerReady(page, opts.wait);
+
+    if (zoomSteps > 0) {
+      console.log(`[${opts.testId}] Zooming in (${zoomSteps} steps)…`);
+      await zoomViewer(page, zoomSteps);
+      console.log(`[${opts.testId}] Waiting for high-res tiles…`);
+      await waitForViewerReady(page, Math.min(opts.wait, 60000));
+    }
 
     await page.screenshot({ path: outFile, fullPage: false });
     console.log(`[${opts.testId}] Screenshot saved: ${outFile}`);
