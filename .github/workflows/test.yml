@@ -44,11 +44,11 @@ jobs:
 
       - name: Checkout repository
         if: ${{ fromJSON(matrix.run_condition) }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
         if: ${{ fromJSON(matrix.run_condition) }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '20'
           cache: 'npm'
@@ -90,7 +90,7 @@ jobs:
 
       - name: Upload test results
         if: ${{ fromJSON(matrix.run_condition) && always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-${{ matrix.environment }}
           path: |
@@ -100,7 +100,7 @@ jobs:
 
       - name: Upload reference results
         if: ${{ fromJSON(matrix.run_condition) && always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: reference-results-${{ matrix.environment }}
           path: test-results/reference-results.json
