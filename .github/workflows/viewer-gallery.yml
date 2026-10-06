@@ -1,9 +1,18 @@
 name: IDC Viewer Screenshot Gallery
+run-name: Viewer gallery (${{ inputs.comparison || 'test-prod' }})
 
 on:
   schedule:
     - cron: '0 5 * * 0'   # weekly, Sunday 5 AM UTC
   workflow_dispatch:       # manual trigger
+    inputs:
+      comparison:
+        description: 'Viewer tiers to compare'
+        type: choice
+        default: test-prod
+        options:
+          - test-prod   # production vs testing
+          - dev-test    # testing vs dev
 
 # Only one Pages deploy can run at a time
 concurrency:
@@ -42,26 +51,56 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       # -----------------------------------------------------------------------
-      # Run 1 — production viewer (URLs from the inventory as-is)
+      # Resolve the two tiers to compare. Scheduled runs have no inputs and
+      # fall back to test-prod. Tier A is the more stable tier (left column).
       # -----------------------------------------------------------------------
-      - name: Capture screenshots — Production viewer
+      - name: Select tiers
+        env:
+          COMPARISON: ${{ inputs.comparison || 'test-prod' }}
+        run: |
+          PROD_BASE=https://viewer.imaging.datacommons.cancer.gov
+          TEST_BASE=https://testing-viewer.canceridc.dev
+          DEV_BASE=https://dev-viewer.canceridc.dev
+          case "$COMPARISON" in
+            test-prod)
+              A_LABEL=Production; A_BASE=$PROD_BASE; A_DIR=production
+              B_LABEL=Testing;    B_BASE=$TEST_BASE; B_DIR=testing ;;
+            dev-test)
+              A_LABEL=Testing;    A_BASE=$TEST_BASE; A_DIR=testing
+              B_LABEL=Dev;        B_BASE=$DEV_BASE;  B_DIR=dev ;;
+            *)
+              echo "Unknown comparison: $COMPARISON" >&2; exit 1 ;;
+          esac
+          {
+            echo "COMPARISON=$COMPARISON"
+            echo "A_LABEL=$A_LABEL"; echo "A_BASE=$A_BASE"; echo "A_DIR=screenshots/$A_DIR"
+            echo "B_LABEL=$B_LABEL"; echo "B_BASE=$B_BASE"; echo "B_DIR=screenshots/$B_DIR"
+          } >> "$GITHUB_ENV"
+          echo "Comparing $A_LABEL ($A_BASE) vs $B_LABEL ($B_BASE)"
+
+      # -----------------------------------------------------------------------
+      # Run 1 — tier A viewer (inventory URLs with base replaced; a no-op for
+      # production since the inventory already uses the production base)
+      # -----------------------------------------------------------------------
+      - name: Capture screenshots — ${{ env.A_LABEL }} viewer
         run: |
           node scripts/viewer-gallery.js \
-            --label "Production" \
-            --out screenshots/production \
+            --label "$A_LABEL" \
+            --out "$A_DIR" \
+            --viewer-base "$A_BASE" \
             --concurrency 4 \
             --wait 120000 \
             --timeout 180000
 
       # -----------------------------------------------------------------------
-      # Run 2 — testing-tier viewer (same URLs, base replaced)
+      # Run 2 — tier B viewer (same URLs, base replaced)
       # -----------------------------------------------------------------------
-      - name: Capture screenshots — Testing tier
+      - name: Capture screenshots — ${{ env.B_LABEL }} viewer
         run: |
           node scripts/viewer-gallery.js \
-            --label "Testing" \
-            --out screenshots/testing \
-            --viewer-base https://testing-viewer.canceridc.dev \
+            --label "$B_LABEL" \
+            --out "$B_DIR" \
+            --viewer-base "$B_BASE" \
             --concurrency 4 \
             --wait 120000 \
             --timeout 180000
@@ -71,10 +110,7 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Build comparison page
         run: |
-          node scripts/build-comparison.js \
-            screenshots/production \
-            screenshots/testing \
-            screenshots/
+          node scripts/build-comparison.js "$A_DIR" "$B_DIR" screenshots/
 
       # -----------------------------------------------------------------------
       # Deploy screenshots/ to GitHub Pages
@@ -97,13 +133,16 @@ jobs:
       - name: Write job summary
         if: always()
         run: |
-          PROD_PASS=$(node -e "const r=JSON.parse(require('fs').readFileSync('screenshots/production/results.json','utf8')); console.log(r.results.filter(x=>x.ok).length+'/'+r.results.length)" 2>/dev/null || echo '?/?')
-          TEST_PASS=$(node -e "const r=JSON.parse(require('fs').readFileSync('screenshots/testing/results.json','utf8'));  console.log(r.results.filter(x=>x.ok).length+'/'+r.results.length)" 2>/dev/null || echo '?/?')
-          echo "## Viewer Gallery" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Environment | Result |" >> $GITHUB_STEP_SUMMARY
-          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| Production | $PROD_PASS screenshots OK |" >> $GITHUB_STEP_SUMMARY
-          echo "| Testing    | $TEST_PASS screenshots OK |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Gallery URL:** ${{ steps.deploy.outputs.page_url }}" >> $GITHUB_STEP_SUMMARY
+          pass_count() {
+            node -e "const r=JSON.parse(require('fs').readFileSync('$1/results.json','utf8')); console.log(r.results.filter(x=>x.ok).length+'/'+r.results.length)" 2>/dev/null || echo '?/?'
+          }
+          {
+            echo "## Viewer Gallery (${COMPARISON:-?})"
+            echo ""
+            echo "| Environment | Viewer | Result |"
+            echo "|---|---|---|"
+            echo "| ${A_LABEL:-?} | ${A_BASE:-?} | $(pass_count "$A_DIR") screenshots OK |"
+            echo "| ${B_LABEL:-?} | ${B_BASE:-?} | $(pass_count "$B_DIR") screenshots OK |"
+            echo ""
+            echo "**Gallery URL:** ${{ steps.deploy.outputs.page_url }}"
+          } >> "$GITHUB_STEP_SUMMARY"
