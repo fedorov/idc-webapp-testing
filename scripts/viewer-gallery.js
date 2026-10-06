@@ -10,8 +10,9 @@
  *   --out <dir>             Output directory (default: screenshots/production)
  *   --label <name>          Gallery label shown in HTML (default: "Production")
  *   --viewer-base <url>     Replace the production viewer base URL with this one.
- *                           Use for testing-tier runs, e.g.:
+ *                           Use for testing/dev-tier runs, e.g.:
  *                           --viewer-base https://testing-viewer.canceridc.dev
+ *                           --viewer-base https://dev-viewer.canceridc.dev
  *   --concurrency <n>       Parallel browser contexts (default: 4)
  *   --wait <ms>             Extra wait after networkidle (default: 10000)
  *   --timeout <ms>          Per-page navigation timeout (default: 120000)
