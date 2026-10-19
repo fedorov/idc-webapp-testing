@@ -1,7 +1,7 @@
 # IDC Viewer Testing Sample Set
 
-**IDC data version:** v24  
-**Queried:** 2026-06-03
+**IDC data version:** v25  
+**Queried:** 2026-10-19 (v25 refresh; originally 2026-06-03 against v24)
 
 ---
 
@@ -12,7 +12,7 @@ The following dimensions are represented in this sample set. Dimensions marked w
 | Dimension | Rationale |
 |---|---|
 | Modality | Different rendering pipelines per modality (windowing, LUT, units) |
-| Transfer syntax | Decoder coverage — 9 distinct syntaxes in IDC, including a retired one (Big Endian) |
+| Transfer syntax | Decoder coverage — 10 distinct syntaxes in IDC, including a retired one (Big Endian) and Deflated EVR-LE |
 | Series size (# instances) | Performance range: 1 instance → 2,864 instances |
 | WSI pixel matrix size | Performance range: 1,600×1,200 px → 189,184×448,768 px |
 | File size (MB/GB) | Memory pressure and streaming behavior differ by 5 orders of magnitude |
@@ -71,7 +71,7 @@ The remaining transfer syntaxes (JPEG Baseline, JPEG 2000 Lossy, JPEG-LS Lossles
 
 ### Image-derived objects
 
-R22 and R23 share a study with a source image series to test cross-series overlay rendering. P9 (Microscopy PR) shares a study with P5 (fluorescence WSI). P8 (fractional TIL SEG) and P11 (binary TIL SEG) share a study in `tcga_luad` — both reference the same 4-instance FFPE H&E pyramid. P12 (SR) and P13 (JPEG-LS fractional SEG) share a study with an RMS FFPE WSI in `rms_mutation_prediction`.
+R22, R23 and R30 share a study with a source image series to test cross-series overlay rendering. P9 (Microscopy PR) shares a study with P5 (fluorescence WSI). P8 (fractional TIL SEG) and P11 (binary TIL SEG) share a study in `tcga_luad` — both reference the same 4-instance FFPE H&E pyramid. P12 (SR) and P13 (JPEG-LS fractional SEG) share a study with an RMS FFPE WSI in `rms_mutation_prediction`.
 
 | # | Type | Collection | Modality | Transfer Syntax | Instances | Size (MB) | Notes | Viewer |
 |---|---|---|---|---|---|---|---|---|
@@ -83,6 +83,7 @@ R22 and R23 share a study with a source image series to test cross-series overla
 | R27 | Spatial Registration | `cc_tumor_heterogeneity` | REG | IVR-LE | 1 | 0.02 | Registration object linking two series | [View](https://viewer.imaging.datacommons.cancer.gov/v3/viewer/?StudyInstanceUIDs=1.3.6.1.4.1.14519.5.2.1.122805535915539618236860659468790107523&initialSeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.172781701010682178700277761330502505852) |
 | R28 | Real World Value Map | `ct_vs_pet_ventilation_imaging` | RWV | EVR-LE | 1 | 0.04 | Maps pixel values to physical quantities (e.g. HU to SUV) | [View](https://viewer.imaging.datacommons.cancer.gov/v3/viewer/?StudyInstanceUIDs=1.3.6.1.4.1.14519.5.2.1.297577087050970310787702792940607009472&initialSeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.272915270687549164634541166926177705239) |
 | R29 | 3D Model | `prostate_mri_us_biopsy` | M3D | EVR-LE | 1 | 0.06 | STL-in-DICOM; tests graceful handling of non-image IOD | [View](https://viewer.imaging.datacommons.cancer.gov/v3/viewer/?StudyInstanceUIDs=1.3.6.1.4.1.14519.5.2.1.85548304921965658367726869399297351743&initialSeriesInstanceUID=1.3.6.1.4.1.5962.99.1.1930536128.799425412.1694147683520.3.0) |
+| R30 | Segmentation — LABELMAP (CT-based, Deflated) | `tcga_kich` | SEG | Deflated EVR-LE (`1.2.840.10008.1.2.1.99`) | 1 | 0.17 | RCC-AID (`rcc_aid`) LABELMAP SEG with 4 segments (background, kidney, mass, cyst) on venous-phase CT; source CT series (281 instances) in same study — tests LABELMAP decoding, Deflated TS, and overlay on source | [View](https://viewer.imaging.datacommons.cancer.gov/v3/viewer/?StudyInstanceUIDs=1.3.6.1.4.1.14519.5.2.1.1357.4011.164653447432801312700968294138&initialSeriesInstanceUID=1.2.276.0.7230010.3.1.3.0.56577.1787705451.234529) |
 
 ---
 
@@ -110,7 +111,7 @@ https://viewer.imaging.datacommons.cancer.gov/slim/studies/{StudyInstanceUID}/se
 |---|---|---|---|---|---|---|---|---|
 | P7 | Bulk annotation (ANN) | `tcga_luad` | ANN | EVR-LE | 1 | 0.88 | 3,567 nucleus polygon annotations on FFPE H&E lung adenocarcinoma WSI; references FFPE DX1 SM series in same study — tests ANN overlay rendering | [View](https://viewer.imaging.datacommons.cancer.gov/slim/studies/2.25.138144370654209238925841881456148313713/series/1.2.826.0.1.3680043.10.511.3.75660021534863062578402046199665898) |
 | P8 | Segmentation — fractional (TIL probability map) | `tcga_luad` | SEG | EVR-LE | 1 | 0.02 | Fractional (probability) TIL SEG (Inception-V4 classifier); same study as P11 binary SEG; source WSI is a 4-instance FFPE H&E pyramid — tests fractional mask overlay | [View](https://viewer.imaging.datacommons.cancer.gov/slim/studies/2.25.62992225306345560076014492175754966026/series/1.2.826.0.1.3680043.10.511.3.15853782687940229415233320538161675) |
-| P9 | Microscopy Presentation State (PR) | `htan_hms` | PR | EVR-LE | 3 | 0.22 | Same study as P5 fluorescence WSI — stored display parameters for slide viewing | [View](https://viewer.imaging.datacommons.cancer.gov/slim/studies/2.25.219049900737444567890964056686598614067/series/1.2.826.0.1.3680043.10.511.3.51337276380398375498224774549772923) |
+| P9 | Microscopy Presentation State (PR) | `htan_hms` | PR | EVR-LE | 3 | 0.22 | Same study as P5 fluorescence WSI — stored display parameters for slide viewing | [View](https://viewer.imaging.datacommons.cancer.gov/slim/studies/2.25.219049900737444567890964056686598614067/series/1.2.826.0.1.3680043.10.511.3.89195067478721359204133769511555576) |
 | P10 | Bulk annotation (ANN) — high zoom | `tcga_luad` | ANN | EVR-LE | — | — | Same study/series as P7, scrolled to high-res pyramid level — validates nucleus polygon overlays and tile decoding at full resolution | [View](https://viewer.imaging.datacommons.cancer.gov/slim/studies/2.25.138144370654209238925841881456148313713/series/1.2.826.0.1.3680043.10.511.3.75660021534863062578402046199665898?_zoom=5) |
 | P11 | Segmentation — binary (TIL map) | `tcga_luad` | SEG | EVR-LE | 1 | 0.01 | Binary tumor-infiltrating lymphocyte (TIL) mask (Inception-V4 classifier); same study as P8 fractional SEG; source WSI is a 4-instance FFPE H&E pyramid — directly comparable to P8 fractional; tests binary mask overlay | [View](https://viewer.imaging.datacommons.cancer.gov/slim/studies/2.25.62992225306345560076014492175754966026/series/1.2.826.0.1.3680043.10.511.3.83696154008696806253659241324786415) |
 | P12 | Structured Report (manual region annotations) | `rms_mutation_prediction` | SR | EVR-LE | 1 | 0.02 | Expert pathologist ROI annotations on RMS FFPE slide; same study as P13 fractional SEG and WSI — viewer must render structured text / annotations without crashing on non-image series | [View](https://viewer.imaging.datacommons.cancer.gov/slim/studies/2.25.5360555849781855019773810600059868899/series/1.2.826.0.1.3680043.10.511.3.11779803878828335792815090898672783) |
@@ -123,13 +124,13 @@ https://viewer.imaging.datacommons.cancer.gov/slim/studies/{StudyInstanceUID}/se
 | Dimension | Coverage |
 |---|---|
 | Modality | CT, MR, PT, CR, DX, MG, US, NM, XA, SM — 10 of 24 modalities in IDC |
-| Image-derived type | SEG binary (P11/tcga_luad), SEG fractional EVR-LE (P8/tcga_luad), SEG fractional JPEG-LS (P13/rms), RTSTRUCT, RTDOSE, RTPLAN, SR radiology (R26), SR pathology (P12/rms), REG, PR, RWV, M3D, ANN |
-| Transfer syntax | IVR-LE, EVR-LE, EVR-BE (retired), JPEG Baseline, JPEG Lossless FOP, JPEG-LS Lossless, J2K Lossless, J2K Lossy, Mixed-within-series |
+| Image-derived type | SEG binary (P11/tcga_luad), SEG LABELMAP (R30/rcc_aid), SEG fractional EVR-LE (P8/tcga_luad), SEG fractional JPEG-LS (P13/rms), RTSTRUCT, RTDOSE, RTPLAN, SR radiology (R26), SR pathology (P12/rms), REG, PR, RWV, M3D, ANN |
+| Transfer syntax | IVR-LE, EVR-LE, EVR-BE (retired), Deflated EVR-LE, JPEG Baseline, JPEG Lossless FOP, JPEG-LS Lossless, J2K Lossless, J2K Lossy, Mixed-within-series |
 | Series size | 1 instance → 2,864 instances (radiology); 1 tile → 240 instances (pathology) |
 | File size | 0.006 MB (SR) → 67,120 MB (fluorescence WSI) |
 | WSI pixel matrix | 1,600 × 1,200 → 189,184 × 448,768 px |
 | Temporal / 4D | 4D gated CT (`4d_lung`), DCE-MRI (`tcga_brca`) |
 | Illumination (pathology) | Brightfield, Epifluorescence |
 | Staining (pathology) | H&E, May-Grünwald Giemsa, 30-plex fluorescence panel (`htan_hms`), ~40-plex fluorescence panel (`htan_tnp_sardana`) |
-| Linked series | SEG + source MR series same study (R22/`qin_prostate_repeatability`), RTSTRUCT + source CT same study (R23/R3), Microscopy PR + source WSI same study (P9/P5), binary SEG + fractional SEG + source WSI same study (P8/P11/`tcga_luad`), pathology SR + fractional SEG + WSI same study (P12/P13/`rms_mutation_prediction`) |
+| Linked series | SEG + source MR series same study (R22/`qin_prostate_repeatability`), LABELMAP SEG + source CT same study (R30/`tcga_kich`), RTSTRUCT + source CT same study (R23/R3), Microscopy PR + source WSI same study (P9/P5), binary SEG + fractional SEG + source WSI same study (P8/P11/`tcga_luad`), pathology SR + fractional SEG + WSI same study (P12/P13/`rms_mutation_prediction`) |
 | Encoding anomaly | Mixed TS within series (P3/cmb_crc, P1/rms_mutation_prediction) |
